@@ -9,8 +9,13 @@ import typer
 
 from dbt_column_lineage.engine import extract_lineage
 
-from dbt_test_lineage.reports import Report, ReportKind, analyze, report_to_dict
-from dbt_test_lineage.tests_loader import load_declared_guarantees, unique_key_guarantees
+from dbt_test_lineage.reports import Finding, Report, ReportKind, analyze, report_to_dict
+from dbt_test_lineage.tests_loader import (
+    load_declared_guarantees,
+    load_run_results,
+    test_uid_index,
+    unique_key_guarantees,
+)
 
 app = typer.Typer(help="Propagate dbt test guarantees through column lineage to find redundant, "
                        "missing, and contradicted tests.", no_args_is_help=True)
@@ -32,7 +37,19 @@ def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool) -> Re
     return analyze(result, guarantees)
 
 
-def _render(report: Report, limit: int = 0) -> None:
+def _status(f: Finding, status_map: dict) -> str:
+    statuses = status_map.get((f.asset, f.column, f.guarantee))
+    if not statuses:
+        return ""
+    if any(s in ("fail", "error") for s in statuses):
+        return " (last run: FAIL — investigate before removing)"
+    if all(s == "pass" for s in statuses):
+        return " (last run: pass — safe to remove)"
+    return f" (last run: {','.join(sorted(set(statuses)))})"
+
+
+def _render(report: Report, limit: int = 0, status_map: dict | None = None) -> None:
+    status_map = status_map or {}
     for kind in ReportKind:
         rows = report.of(kind)  # already sorted worst-first by priority
         if not rows:
@@ -41,15 +58,29 @@ def _render(report: Report, limit: int = 0) -> None:
         suffix = f" (showing top {len(shown)})" if limit and len(rows) > limit else ""
         typer.secho(f"\n{kind.value} ({len(rows)}){suffix}", bold=True)
         for f in shown:
-            typer.echo(f"  [p{f.priority}] {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}")
+            run = _status(f, status_map) if kind.value.startswith("REDUNDANT") else ""
+            typer.echo(f"  [p{f.priority}] {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}{run}")
             for step in f.path:
                 typer.echo(f"        {step.effect.value}: {step.column} {step.detail}".rstrip())
     if report.coverage:
         typer.secho("\ncoverage", bold=True)
         for kind, c in report.coverage.items():
-            total = c["total"] or 1
-            typer.echo(f"  {kind}: {c['covered']}/{c['total']} columns guaranteed "
-                       f"({100 * c['covered'] // total}%), {c['uncovered']} uncovered")
+            total, wtotal = c["total"] or 1, c.get("weighted_total") or 1
+            typer.echo(
+                f"  {kind}: {c['covered']}/{c['total']} columns ({100 * c['covered'] // total}%), "
+                f"importance-weighted {100 * c.get('weighted_covered', 0) // wtotal}% "
+                f"— {c['uncovered']} uncovered"
+            )
+    low = [lv for lv in report.leverage if lv.reach == 0]
+    if report.leverage:
+        typer.secho("\ntest leverage", bold=True)
+        typer.echo(f"  {len(low)} of {len(report.leverage)} tests have reach 0 "
+                   "(guard only their own column — low leverage)")
+    if report.consolidations:
+        covered_total = sum(len(v) for v in report.consolidations.values())
+        typer.secho("\nconsolidation", bold=True)
+        typer.echo(f"  {covered_total} redundant tests collapse onto {len(report.consolidations)} "
+                   "upstream anchors (test once at the anchor, remove the rest)")
     typer.echo(
         f"\nsummary: {len(report.of(ReportKind.REDUNDANT))} redundant (inherited), "
         f"{len(report.of(ReportKind.REDUNDANT_STRUCTURAL))} redundant (structural), "
@@ -60,9 +91,26 @@ def _render(report: Report, limit: int = 0) -> None:
     )
 
 
+def _status_map(manifest: Path, run_results: Optional[Path]) -> dict:
+    """(asset, column, kind) -> [last-run statuses] for the tests on that column."""
+    if not run_results:
+        return {}
+    runs = load_run_results(run_results)
+    out: dict = {}
+    for (asset, column, kind), uids in test_uid_index(manifest).items():
+        statuses = [runs[u] for u in uids if u in runs]
+        if statuses:
+            out[(asset, column, kind)] = statuses
+    return out
+
+
 @app.command()
 def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
            assume_unique_key: bool = _ASSUME_UK,
+           run_results: Optional[Path] = typer.Option(
+               None, "--run-results",
+               help="dbt run_results.json — annotate redundant tests with last-run status "
+                    "(passing = safe to remove; failing = investigate first)"),
            limit: int = typer.Option(0, "--limit", "-n",
                                      help="Show only the top-N (highest priority) findings per category"),
            as_json: bool = typer.Option(False, "--json", help="Emit JSON instead of text")) -> None:
@@ -71,7 +119,7 @@ def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
     if as_json:
         typer.echo(json.dumps(report_to_dict(rep), indent=2))
     else:
-        _render(rep, limit)
+        _render(rep, limit, _status_map(manifest, run_results))
 
 
 @app.command()

@@ -74,6 +74,29 @@ def test_relies_on_data_counts_tested_not_guaranteed():
     assert all(f.asset != RISKY for f in report.findings)  # not flagged as missing/redundant
 
 
+def test_weighted_coverage_present():
+    result, guarantees = _scenario()
+    cov = analyze(result, guarantees, kinds=(NN,)).coverage["not_null"]
+    assert cov["weighted_total"] >= cov["total"]  # weighting inflates by importance
+    assert "weighted_covered" in cov
+
+
+def test_leverage_reach_reflects_downstream_footprint():
+    result, guarantees = _scenario()
+    report = analyze(result, guarantees, kinds=(NN,))
+    reach = {(lv.asset, lv.column): lv.reach for lv in report.leverage}
+    # root.id's guarantee survives down to mid.id (held); risky.id breaks it -> reach 1
+    assert reach[(ROOT, "id")] == 1
+    assert reach[(MID, "id")] == 0  # mid.id has nothing holding downstream
+
+
+def test_consolidation_collapses_redundant_onto_anchor():
+    result, guarantees = _scenario()
+    report = analyze(result, guarantees, kinds=(NN,))
+    # the redundant test on mid.id collapses onto its upstream anchor root.id
+    assert report.consolidations == {f"{ROOT}.id": [f"{MID}.id"]}
+
+
 def test_report_to_dict_shape():
     f = Finding(ReportKind.CONTRADICTION, "model.x", "c", NN, Verdict.VIOLATED, "proven null")
     d = report_to_dict(Report((f,), relies_on_data=3))

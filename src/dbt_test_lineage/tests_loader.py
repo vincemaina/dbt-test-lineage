@@ -74,6 +74,34 @@ def load_declared_guarantees(manifest_path: str | Path) -> list[DeclaredGuarante
     return list(load_test_inventory(manifest_path).guarantees)
 
 
+def test_uid_index(manifest_path: str | Path) -> dict[tuple[str, str, GuaranteeKind], list[str]]:
+    """`(attached_model, column, kind) -> [test node unique_id]` for not_null/unique tests — lets a
+    finding be tied back to the actual dbt test node(s) (e.g. to look up run history)."""
+    manifest = json.loads(Path(manifest_path).read_text())
+    out: dict[tuple[str, str, GuaranteeKind], list[str]] = {}
+    for uid, node in manifest.get("nodes", {}).items():
+        if node.get("resource_type") != "test":
+            continue
+        name = (node.get("test_metadata") or {}).get("name")
+        kind = _KIND_BY_TEST_NAME.get(name) if name else None
+        column = node.get("column_name")
+        asset = _attached_model(node)
+        if kind is None or not column or asset is None:
+            continue
+        out.setdefault((asset, column.lower(), kind), []).append(node.get("unique_id", uid))
+    return out
+
+
+def load_run_results(path: str | Path) -> dict[str, str]:
+    """`test_unique_id -> status` (pass / fail / error / skipped) from a dbt `run_results.json`."""
+    data = json.loads(Path(path).read_text())
+    return {
+        r["unique_id"]: str(r.get("status", "")).lower()
+        for r in data.get("results", [])
+        if "unique_id" in r
+    }
+
+
 def _key_columns(unique_key: object) -> list[str] | None:
     """Plain column name(s) from a `unique_key` config (str or list of str). Returns None for an
     expression / SQL key (e.g. `coalesce(a,b)`, `a || b`) we can't map to columns."""

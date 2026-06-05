@@ -64,10 +64,24 @@ class Finding:
 
 
 @dataclass(frozen=True)
+class TestLeverage:
+    """How far an explicit test's guarantee reaches: the number of downstream columns where it still
+    holds, reachable from the tested column. Low reach = the test guards little (the structure kills the
+    guarantee right away); high reach = it protects a wide downstream footprint."""
+
+    asset: str
+    column: str
+    guarantee: GuaranteeKind
+    reach: int
+
+
+@dataclass(frozen=True)
 class Report:
     findings: tuple[Finding, ...]
     relies_on_data: int = 0  # tested columns that are NOT_GUARANTEED (load-bearing, not a problem)
-    coverage: dict = field(default_factory=dict)  # kind -> {total, covered, uncovered}
+    coverage: dict = field(default_factory=dict)  # kind -> {total, covered, uncovered, weighted_*}
+    leverage: tuple[TestLeverage, ...] = ()  # per explicit test, low-reach first
+    consolidations: dict = field(default_factory=dict)  # anchor "asset.col" -> redundant tests it covers
 
     def of(self, kind: ReportKind) -> list[Finding]:
         return [f for f in self.findings if f.kind == kind]
@@ -87,18 +101,64 @@ def _held(colstr: str, verdicts: dict[tuple[str, str], ColumnVerdict], tested: s
     return cv is not None and cv.verdict.holds
 
 
+def _anchor(start: tuple, up_adj: dict, asserted: set, held: set) -> tuple | None:
+    """Climb upstream through holding columns to the nearest column that carries a declared guarantee —
+    the test that makes `start` redundant (so a chain of re-tests can collapse to this one anchor)."""
+    seen: set = set()
+    stack = [start]
+    while stack:
+        for up in up_adj.get(stack.pop(), ()):
+            if up in seen:
+                continue
+            seen.add(up)
+            if up in asserted:
+                return up
+            if up in held:  # keep climbing only while the guarantee is preserved
+                stack.append(up)
+    return None
+
+
+def _reach(start: tuple, down_adj: dict, held: set) -> int:
+    """Count downstream columns reachable from `start` through columns where the guarantee still holds —
+    the test's downstream footprint. Stops where the guarantee dies. Cycle-safe."""
+    seen: set = set()
+    stack = [start]
+    while stack:
+        for nxt in down_adj.get(stack.pop(), ()):
+            if nxt not in seen and nxt in held:
+                seen.add(nxt)
+                stack.append(nxt)
+    return len(seen)
+
+
 def analyze(
     result: LineageResult,
     guarantees: list[DeclaredGuarantee],
     kinds: tuple[GuaranteeKind, ...] = _DEFAULT_KINDS,
 ) -> Report:
     findings: list[Finding] = []
+    leverage: list[TestLeverage] = []
     relies_on_data = 0
     coverage: dict = {}
     # UNCOVERED findings are scoped to SINGLE-column grains — a model's natural primary key — so the list
     # stays actionable. (Every grain column would be ~noise: many GROUP BY keys are nullable dimensions;
     # the whole-population picture is the `coverage` stat instead.)
     grain_cols = {(o.asset, o.grain[0]) for o in result.operations if len(o.grain) == 1}
+    # downstream + upstream adjacency and blast radius, computed once over the DIRECT graph
+    out_degree: dict = defaultdict(int)
+    down_adj: dict = defaultdict(list)
+    up_adj: dict = defaultdict(list)
+    for e in result.edges:
+        if e.lineage_type == LineageType.DIRECT:
+            up, down = (e.upstream.asset, e.upstream.column), (e.downstream.asset, e.downstream.column)
+            out_degree[up] += 1
+            down_adj[up].append(down)
+            up_adj[down].append(up)
+    consolidations: dict = defaultdict(list)  # anchor "asset.col" -> redundant tests it covers
+
+    def weight(key: tuple) -> int:  # column importance: base + blast radius + key-ness
+        return 1 + min(out_degree.get(key, 0), 10) + (10 if key in grain_cols else 0)
+
     for kind in kinds:
         verdicts = propagate(result, guarantees, kind)  # seeds from explicit tests AND implied (config)
         explicit = {(g.asset, g.column) for g in guarantees if g.kind == kind and g.source == "test"}
@@ -109,7 +169,10 @@ def analyze(
         covered = asserted | held  # config-implied guarantees count as coverage too
         uncovered = universe - covered
         coverage[kind.value] = {
-            "total": len(universe), "covered": len(covered), "uncovered": len(uncovered)
+            "total": len(universe), "covered": len(covered), "uncovered": len(uncovered),
+            # importance-weighted: a covered high-blast-radius/PK column counts for more than a leaf
+            "weighted_total": sum(weight(k) for k in universe),
+            "weighted_covered": sum(weight(k) for k in covered),
         }
 
         for asset, column in explicit:  # findings report only on EXPLICIT tests (removable test nodes)
@@ -125,9 +188,13 @@ def analyze(
                     Finding(ReportKind.REDUNDANT_STRUCTURAL, asset, column, kind, cv.verdict, why, cv.path)
                 )
             elif cv.verdict == Verdict.PROVEN:  # inherited from an upstream test via passthrough
+                anchor = _anchor((asset, column), up_adj, asserted - {(asset, column)}, held)
+                why = "guarantee already proven upstream + preserving transforms"
+                if anchor:
+                    why += f" — covered by the guarantee at {anchor[0]}.{anchor[1]}"
+                    consolidations[f"{anchor[0]}.{anchor[1]}"].append(f"{asset}.{column}")
                 findings.append(
-                    Finding(ReportKind.REDUNDANT, asset, column, kind, cv.verdict,
-                            "guarantee already proven by upstream test + preserving transforms", cv.path)
+                    Finding(ReportKind.REDUNDANT, asset, column, kind, cv.verdict, why, cv.path)
                 )
             elif cv.verdict == Verdict.VIOLATED:
                 findings.append(
@@ -162,19 +229,16 @@ def analyze(
                         cv.path if cv else ())
             )
 
-    # priority = key-ness (is a single-column grain / PK) + downstream blast radius (how many columns
-    # directly read it). Sorts the worst-first so a long MISSING/UNCOVERED list is actionable top-down.
-    out_degree: dict = defaultdict(int)
-    for e in result.edges:
-        if e.lineage_type == LineageType.DIRECT:
-            out_degree[(e.upstream.asset, e.upstream.column)] += 1
+        for key in explicit:  # test leverage: downstream footprint where the guarantee still holds
+            leverage.append(TestLeverage(key[0], key[1], kind, _reach(key, down_adj, held)))
 
-    def _priority(f: Finding) -> int:
-        key = (f.asset, f.column)
-        return (10 if key in grain_cols else 0) + min(out_degree.get(key, 0), 10)
-
-    ranked = sorted((replace(f, priority=_priority(f)) for f in findings), key=lambda f: -f.priority)
-    return Report(tuple(ranked), relies_on_data, coverage)
+    # priority = blast radius + key-ness (= weight without the base 1). Sorts findings worst-first.
+    ranked = sorted(
+        (replace(f, priority=weight((f.asset, f.column)) - 1) for f in findings),
+        key=lambda f: -f.priority,
+    )
+    leverage.sort(key=lambda lv: lv.reach)  # least-leverage tests first
+    return Report(tuple(ranked), relies_on_data, coverage, tuple(leverage), dict(consolidations))
 
 
 def finding_to_dict(f: Finding) -> dict:
@@ -199,5 +263,10 @@ def report_to_dict(report: Report) -> dict:
             "relies_on_data": report.relies_on_data
         },
         "coverage": report.coverage,
+        "leverage": [
+            {"asset": lv.asset, "column": lv.column, "guarantee": lv.guarantee.value, "reach": lv.reach}
+            for lv in report.leverage
+        ],
+        "consolidations": report.consolidations,
         "findings": {k: by_kind.get(k, []) for k in (r.value for r in ReportKind)},
     }

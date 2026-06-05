@@ -90,29 +90,26 @@ Ideas to push the tool from "find redundant/missing tests" toward "tell me how g
 our testing is." Roughly ordered by value/effort; all build on the existing verdict + propagation IR.
 
 **Efficiency (test economically):**
-- **Optimal / minimal test placement** *(high value)* — the propagation knows where each guarantee is
-  established and where it breaks, so we can compute the *minimal set of test locations* that covers a
-  guarantee across a lineage (test at each establishment point + right after each break; nothing in the
-  preserving stretches between). Output: "you test `order_id` not_null at 6 models in this chain; 2
-  suffice — the other 4 are inherited-redundant." The constructive inverse of REDUNDANT.
+- **✅ Optimal / minimal test placement — DONE (first cut).** `Report.consolidations`: each REDUNDANT
+  (inherited) test is traced to the upstream **anchor** that covers it (`_anchor` climbs through holding
+  columns to the nearest declared guarantee); grouped anchor → covered tests = "test once at the anchor,
+  remove the rest." Reason string names the anchor.
 - **Test consolidation at chokepoints** — find columns where many lineages converge; testing there
-  covers many downstream paths with fewer tests.
+  covers many downstream paths with fewer tests. *(Extends consolidation; still future.)*
 
 **Effectiveness (test the right things):**
-- **Guarantee reach / test leverage** *(high value)* — for each test, how far downstream its guarantee
-  survives before a transform kills it. High-reach tests protect a lot; a test whose guarantee dies one
-  hop down only guards its own column. Ranks tests by the protection they actually provide.
-- **Importance-weighted coverage** — plain coverage % treats all columns equally; weight by blast
-  radius / PK-ness / feeds-an-exposure so "coverage of high-impact columns" is the headline number
-  (extends `Finding.priority`).
+- **✅ Guarantee reach / test leverage — DONE.** `Report.leverage`: per explicit test, the downstream
+  footprint where its guarantee still holds (`_reach` through holding columns). Low reach (0) = guards
+  only its own column.
+- **✅ Importance-weighted coverage — DONE.** `coverage[kind]` carries `weighted_total`/`weighted_covered`
+  (column weight = 1 + blast radius + PK-ness), so "coverage of high-impact columns" is surfaced.
+- **✅ `run_results.json` correlation — DONE.** `--run-results`: redundant tests annotated with last-run
+  status (passing = safe to remove; failing = investigate). `tests_loader.test_uid_index` +
+  `load_run_results`.
 - **Exposure-aware prioritization** — dbt `exposures` mark columns the business consumes (dashboards,
-  ML). Prioritize gaps on lineage paths that reach an exposure ("this untested nullable column feeds the
-  Revenue dashboard").
-- **`run_results.json` correlation** — a test that is structurally redundant AND has never failed in N
-  runs is a strong remove candidate; a frequently-failing one is load-bearing. Ties static analysis to
-  empirical history.
+  ML). Prioritize gaps on lineage paths that reach an exposure. *(Still future.)*
 - **`accepted_values` / `relationships` propagation** — extend the lattice to the other two generic
-  tests (does a value-domain survive a CASE/coalesce; does a FK relationship survive a join).
+  tests (does a value-domain survive a CASE/coalesce; does a FK relationship survive a join). *(Future.)*
 - **Diff / regression mode** — compare two manifests (PR before/after): "your change made `order_id`
   NOT_GUARANTEED and 3 downstream tests now rely on data" — change-safety for CI.
 
