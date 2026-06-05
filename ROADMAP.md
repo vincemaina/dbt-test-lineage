@@ -14,37 +14,69 @@ and a real-repo sanity run (the engine's `.repos/lyst-dbt` clone has 195 not_nul
 dependency** resolving and importable. A smoke test that calls `extract_lineage` on the engine's jaffle
 fixture and asserts a `LineageResult` comes back. Per-folder `CLAUDE.md`.
 
-## Phase 1 — Test loader & guarantee model  ◻
+## Phase 1 — Test loader & guarantee model  ✅ done
 
-Parse `manifest.json` test nodes (`resource_type:"test"`) into typed `DeclaredGuarantee(model, column,
-kind)` for `not_null` / `unique` (skip + count others). Define the verdict lattice (`PROVEN` /
-`VIOLATED` / `UNKNOWN` / `ESTABLISHED`) and the `ColumnVerdict` IR with a propagation-path field.
-Loader tested against the jaffle fixture (extend it with a few tests) and the real repo.
+`tests_loader.py`: `load_test_inventory` parses `manifest.json` test nodes into typed
+`DeclaredGuarantee(asset, column, kind)` for `not_null`/`unique`, normalizes columns to lower-case, and
+tallies skipped tests (`TestInventory.skipped_by_name`). `verdict.py`: the `Verdict` lattice
+(`PROVEN`/`ESTABLISHED`/`VIOLATED`/`UNKNOWN`, `.holds`), `Effect`, and the explainable `ColumnVerdict`
+IR (ordered `PropagationStep` path) + serializer. Validated on a synthetic manifest and the real repo
+(194 guarantees: 179 model, 15 seed — tests attach to models/seeds/sources, all valid seed points). 10
+tests, lint clean.
 
-## Phase 2 — not_null propagation  ◻
+## Phase 2 — not_null propagation  ✅ done
 
-The per-transform nullability rule table (architecture §4.1) + multi-edge combination (§4.3: coalesce
-OR, union/case AND). Topological walk over the column graph seeding from declared not_null tests.
-Output `ColumnVerdict` per column with the explaining path. Hand-verified rule fixtures (one per
-transform kind) are the correctness oracle — mirror the engine's eval-harness discipline.
+`rules.not_null_effect` implements the §4.1 table (lattice-function model: PRESERVE=identity,
+BREAK/ESTABLISH/UNKNOWN=constants, so the last non-PRESERVE step wins). `propagate.propagate` does the
+model-topological walk, folds each edge's chain over its upstream verdict, and combines per §4.3
+(COALESCE=OR, UNION=AND across branches, else AND). A tested column propagates downstream as PROVEN
+(dbt enforces it); the returned verdict is COMPUTED-from-inputs only, so Phase 4 can compare it against
+the column's own test. **Real-repo validation forced a soundness reframe** (architecture §3.1): a
+null-admitting transform (TRY_CAST / outer join / variant access) → `NOT_GUARANTEED` (advisory, "admits
+a null"), **not** `VIOLATED` — equating the two gave 47 false CI fails. `VIOLATED` is reserved for
+provable cases (the only CI-failing verdict). Rule-table oracle (`test_rules.py`, 23 cases) + synthetic
+combination tests + end-to-end through the engine. 47 tests, lint clean. (Follow-up: push
+`coalesce has_nonnull_default` into the engine as a fact instead of the current sound string heuristic.)
 
-## Phase 3 — unique propagation  ◻
+## Phase 3 — unique propagation  ✅ done
 
-Cardinality rules (architecture §4.2): row-multiplication breaks (`operations.may_multiply_rows`),
-`GROUP BY` grain / `DISTINCT` establish, per-column injectivity. Single-column `unique` + the grain
-tuple. Combined with Phase 2 into a single propagation pass.
+**Full grain-tuple tracking** (user-chosen): track unique column SETS, not just single columns. Compute
+per-model unique keys from `operations.grain` (the GROUP BY grain as output columns — **added to the
+engine** this pass, since `controls` GROUP_BY is base-resolved and doesn't map cleanly to outputs) and
+`operations.distinct` (all outputs), inherit keys through injective passthrough when the model doesn't
+multiply rows (`operations.may_multiply_rows`), and break on fan-out / non-injective transforms
+(architecture §4.2). A single-column `unique` test on `C` ⇒ `.holds` iff `{C}` is a unique key.
+Engine `ModelOperation.grain` fact (maps `group by 1,2` / `group by a` → output column names; `()` if a
+grain key isn't selected) + `rules.is_injective_chain` + `propagate._propagate_unique` (per-model unique
+key-set propagation): establish from grain/distinct, inherit through injective passthrough when not
+`may_multiply_rows`, break on fan-out → `NOT_GUARANTEED`. Single-column `unique` test holds iff `{C}` is
+a key; composite grain doesn't prove single columns. 8 unique tests (synthetic + e2e grain+inheritance).
+Like not_null, fan-out is "may multiply" → `NOT_GUARANTEED`, not provable `VIOLATED`.
 
-## Phase 4 — The three reports + CI gate + advisory CLI  ◻
+## Phase 4 — Reports + CI gate + advisory CLI  ✅ done
 
-`CONTRADICTION` / `MISSING` / `REDUNDANT` detection (architecture §5) over the verdicts. Typer CLI:
-`check` (CI gate — non-zero exit on contradictions, configurable on gaps) and `report` (advisory,
-human-readable + JSON). Each row shows the propagation path. End-to-end on the real repo.
+`reports.analyze` → `Report` of `Finding`s: **REDUNDANT** (tested + `.holds`), **MISSING** (untested +
+`NOT_GUARANTEED` *whose upstream held the guarantee* — i.e. a real coverage hole where a transform
+dropped it, kept targeted to avoid noise), **CONTRADICTION** (tested + provable `VIOLATED`), plus a
+`relies_on_data` count (tested `NOT_GUARANTEED` = load-bearing, not a finding). Typer CLI `cli.py`:
+`report` (text + `--json`, shows propagation path) and `check` (exits 1 on contradictions, `--strict`
+also on missing). 63 tests, lint clean. Validated end-to-end via the CLI on the real repo.
 
 ## Phase 5 — Breadth & ergonomics  ◻
 
 `accepted_values` + `relationships` propagation (the lattice generalizes), multi-column `unique`,
 richer reporting (coverage %, by-package), OpenLineage/test-result export, optional wrapper that runs
 the engine for the user.
+
+## Future direction — declared-assumption verification
+
+Generalize the propagation from "does a test's guarantee survive?" to "does a declared *assumption*
+hold upstream?" (architecture §7): (a) **declared-vs-derived type checking** — compare an expected data
+type from column YAML docs / manifest column metadata against the engine's inferred/derived upstream
+type, flagging mismatches (mostly reuses the engine's inference + hybrid reconciliation facts);
+(b) **ad-hoc assumption probing** — given a test on a column, walk upstream on demand to check the
+assumption is supportable. Noted now so the verdict/path IR stays general enough to carry a type/value
+assumption, not only not_null/unique. (Requested 2026-06-05; deferred.)
 
 ## Known design risks (to validate as we build)
 

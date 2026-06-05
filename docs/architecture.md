@@ -29,9 +29,11 @@ guarantee semantics live here; no lineage extraction lives here.
 3. **Soundness over coverage — conservative both ways.** A column's guarantee is `PROVEN` only when the
    recorded facts *prove* it, `VIOLATED` only when they *prove* it cannot hold, else `UNKNOWN`. We never
    guess a guarantee holds, and never cry wolf on a violation. `UNKNOWN` is a first-class, common state.
-4. **Two output modes from one engine.** A **CI gate** (non-zero exit on `CONTRADICTION`, configurable
-   on coverage gaps) and an **advisory report** (missing / redundant tests, with the propagation that
-   explains each). Same analysis, two renderers.
+4. **Primarily an advisory report; CI gate secondary.** The headline surface is the **report**
+   (redundant / missing tests, with the propagation that explains each) — human-read, not a build
+   blocker. A **CI gate** renderer also exists (non-zero exit on `CONTRADICTION`, `--strict` on coverage
+   gaps) from the same analysis, but until we can *prove* `VIOLATED` it rarely fires, so it stays a
+   secondary surface. Lead with `report`. (User steer, 2026-06-05.)
 5. **dbt artifacts are the test source.** Declared tests come from `manifest.json` test nodes
    (`resource_type: "test"`, `test_metadata.name`, `column_name`, `attached_node`). YAML is never read
    directly; the compiled manifest is the contract — mirrors the engine's stance.
@@ -45,14 +47,22 @@ guarantee semantics live here; no lineage extraction lives here.
 For each `(column, guarantee_type)` we compute a `Verdict`:
 
 - **`PROVEN`** — the recorded transforms prove the guarantee holds for every row.
-- **`VIOLATED`** — the recorded transforms prove the guarantee cannot hold (e.g. a not_null column fed
-  through a LEFT join's nullable side).
-- **`UNKNOWN`** — not provable either way from the facts (the safe default; e.g. an unknown scalar
-  function, a missing upstream schema, an `EXPRESSION` we can't reason about).
+- **`ESTABLISHED`** — newly true at a column even though its inputs were not (e.g. `COALESCE(x, 'n/a')`
+  is not_null regardless of `x`; `GROUP BY k` makes `k` unique). `PROVEN` with provenance "created here,
+  not inherited" — the key signal for the redundancy report. (`PROVEN`/`ESTABLISHED` ⇒ `.holds`.)
+- **`NOT_GUARANTEED`** — the structure **admits** a violation: a null-admitting / non-injective
+  transform is on the path (TRY_CAST, outer-join nullable side, `STRUCT_ACCESS`, `CASE` with no ELSE,
+  fan-out for unique). This is **not** proof of failure — the test may be perfectly valid and the data
+  may always satisfy it. It means the guarantee is *not structurally guaranteed* and depends on data.
+- **`UNKNOWN`** — not determinable from the facts (unknown scalar function, missing upstream info).
+- **`VIOLATED`** — the transforms **prove** the guarantee cannot hold (rare: a literal `NULL` column,
+  provable fan-out duplication). Reserved for the genuinely-provable case; this is the only CI-failing
+  verdict. Most "admits a null" cases are `NOT_GUARANTEED`, not `VIOLATED`.
 
-A guarantee can also be **`ESTABLISHED`** — newly true at a column even though its inputs were not
-(e.g. `COALESCE(x, 'n/a')` is not_null regardless of `x`; `GROUP BY k` makes `k` unique). `ESTABLISHED`
-is `PROVEN` with provenance "created here, not inherited" — useful for the redundancy report.
+**Why the `NOT_GUARANTEED` / `VIOLATED` split (learned from real-repo validation):** almost nothing is
+statically "provably null" — TRY_CAST/LEFT JOIN/variant-access *admit* nulls without *guaranteeing*
+them. Equating "admits" with "contradiction" produced ~47 false CI failures on a 729-model repo. A false
+alarm erodes trust faster than a missed one (locked decision §2.3), so "admits" is advisory, not fatal.
 
 ### 3.2 How propagation runs
 
@@ -70,8 +80,11 @@ is `PROVEN` with provenance "created here, not inherited" — useful for the red
 ## 4. Transform rule tables (facts → guarantee effect)
 
 The engine's `TransformStep.kind` + `detail` map to nullability and cardinality effects. `P` = preserve
-(output inherits input), `B` = break (→ nullable / non-unique), `E` = establish (→ guaranteed
-regardless of input), `?` = unknown (→ conservative break of `PROVEN`, but not a `VIOLATION`).
+(output inherits input), `B` = break (admits a violation → `NOT_GUARANTEED`, **not** `VIOLATED`),
+`E` = establish (→ guaranteed regardless of input), `?` = unknown (→ conservative downgrade of `PROVEN`
+to `UNKNOWN`). No transform currently yields `VIOLATED` for not_null — nothing in the facts proves a
+column is always/sometimes null (a literal-`NULL` column simply has no lineage edge). `VIOLATED` is
+reserved for cases we can actually prove (and for unique fan-out, evaluated in Phase 3).
 
 ### 4.1 not_null effect (per transform step)
 
@@ -130,18 +143,21 @@ These combination semantics are *why* the engine records `arg_index`, `branch`, 
 
 ## 5. Outputs — the three reports
 
-Defined precisely over the lattice (a test exists / a guarantee verdict):
+Defined precisely over the lattice (does a test exist on the column × its computed verdict, which
+excludes the column's own test). The two headline reports are sound and actionable:
 
-- **CONTRADICTION** (highest value, CI-failing): a column has a declared `not_null`/`unique` test, but
-  its propagated verdict is `VIOLATED`. The test asserts something the transforms prove false → the test
-  is wrong, the upstream changed, or there's a real data bug waiting to fire.
-- **MISSING** (advisory): a column's verdict is `PROVEN`/`ESTABLISHED` for a guarantee its **declared
-  grain** suggests it should carry, but **no test exists** here — or, more useful, a column that is
-  `UNKNOWN`/fragile (a `B` transform) on the path between two tested models, i.e. a coverage hole where
-  the guarantee is *not* carried through and should be re-tested.
-- **REDUNDANT** (advisory): a column carries a `not_null`/`unique` test, but the same guarantee is
-  already `PROVEN` by an upstream test + a chain of preserving transforms (no `B`/`?` in between) → the
-  test re-checks something already guaranteed; candidate for removal to cut test runtime.
+- **REDUNDANT** (advisory, high-confidence): a column carries a `not_null`/`unique` test, but its
+  computed verdict already `.holds` (`PROVEN`/`ESTABLISHED`) from an upstream test + preserving
+  transforms. The test re-checks something the structure already guarantees → candidate for removal to
+  cut CI runtime. This is the most defensible signal — it only fires when we can *prove* redundancy.
+- **MISSING** (advisory): a column is **untested** and `NOT_GUARANTEED` — the structure admits a null /
+  duplicate (a `B` transform on the path) and nothing guards it. A coverage hole worth a test. (A
+  `PROVEN` untested column is *not* missing — structure already guarantees it.)
+- **CONTRADICTION** (CI-failing, rare/strict): a column has a declared test but its verdict is
+  `VIOLATED` — the transforms *prove* the guarantee cannot hold. Reserved for genuinely-provable cases
+  so the CI gate never false-alarms. `NOT_GUARANTEED` is **not** a contradiction (the test may be valid;
+  the data may always satisfy it) — it surfaces in an informational "relies on data, not structure"
+  listing, optionally promotable to a failure via a strict/opt-in mode.
 
 Every report row includes the **propagation path**: the column-to-column chain and the transform at
 each hop that produced the verdict, so the user can audit and act.
@@ -167,6 +183,16 @@ manifest.json ──► test loader (resource_type:"test") ──► DeclaredGua
   facts. (A `PROVEN` verdict means "the transforms guarantee it," not "the current data satisfies it.")
 - **`accepted_values` / `relationships`** propagation — designed-for (the lattice + path machinery is
   general), deferred past the not_null/unique MVP.
+- **Declared-assumption verification (future direction).** The same propagation machinery generalizes
+  from "does a *test's* guarantee survive?" to "does a *declared assumption* hold upstream?". Two shapes,
+  both later: (a) **declared-vs-derived type checking** — read an expected data type from column YAML
+  docs (or the manifest's column metadata) and check it against what the engine infers/derives upstream,
+  flagging mismatches; (b) **ad-hoc assumption probing** — when a `not_null` (or other) test sits on a
+  column, walk upstream to verify the assumption is actually supportable by the lineage (essentially the
+  MISSING/REDUNDANT analysis run on demand for a single column). The engine already exposes inferred
+  schemas + provenance and the hybrid reconciliation diff, so the type-check variant mostly reuses
+  existing facts. Deferred — noted so the verdict/path IR stays general enough to carry a type/value
+  assumption, not only not_null/unique.
 - **Multi-column `unique`** beyond the group-by/distinct grain tuple — follow-up.
 - **Correlated-subquery and other engine `UNKNOWN`s** propagate as `?` (we inherit the engine's
   documented limitations rather than re-deriving lineage).

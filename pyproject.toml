@@ -11,6 +11,9 @@ dependencies = [
     "typer>=0.26.7",
 ]
 
+[project.scripts]
+dbt-test-lineage = "dbt_test_lineage.cli:app"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/dbt_test_lineage"]
 
