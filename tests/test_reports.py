@@ -119,6 +119,22 @@ def test_inherited_redundant_stays_redundant():
     assert report.of(ReportKind.REDUNDANT_STRUCTURAL) == []
 
 
+def test_findings_ranked_by_priority():
+    # two missing columns: one is a PK (grain) feeding a downstream col, one is a leaf
+    edges = (
+        _edge(MID, "pk", ROOT, "id", TransformStep(TransformKind.CAST, {"to_type": "INT", "safe": True})),
+        _edge(MID, "leaf", ROOT, "id", TransformStep(TransformKind.CAST, {"to_type": "INT", "safe": True})),
+        _edge("model.down", "x", MID, "pk", TransformStep(TransformKind.IDENTITY, {})),
+    )
+    ops = (ModelOperation(asset=MID, grain=("pk",)),)
+    result = LineageResult(edges=edges, operations=ops)
+    report = analyze(result, [DeclaredGuarantee(ROOT, "id", NN)], kinds=(NN,))
+    missing = report.of(ReportKind.MISSING)
+    # the PK (grain + has a downstream dependent) must rank above the leaf
+    assert missing[0].column == "pk"
+    assert missing[0].priority > missing[-1].priority
+
+
 def test_uncovered_flags_grain_column_with_no_coverage():
     # GRAIN model.g groups by k, but k has no not_null guarantee anywhere in its lineage
     edges = (_edge("model.g", "k", ROOT, "k", TransformStep(TransformKind.IDENTITY, {})),)

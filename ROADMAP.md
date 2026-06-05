@@ -72,11 +72,49 @@ projects that do, it seeds propagation, counts as coverage, and suppresses UNCOV
 findings still report only on explicit tests. Real repo: 411 models declare a usable unique_key → 824
 implied guarantees. 72 tests, lint clean.
 
+## Phase 4.5 — Finding prioritization  ✅ done
+
+`Finding.priority` = key-ness (single-column grain / PK) + downstream blast radius (direct dependents,
+capped). Findings sorted worst-first; CLI `report --limit N` shows the top-N per category and prints the
+`[pN]` score. Makes a long MISSING list (248 with `--assume-unique-key`) actionable top-down. 73 tests.
+
 ## Phase 5 — Breadth & ergonomics  ◻
 
 `accepted_values` + `relationships` propagation (the lattice generalizes), multi-column `unique`,
 richer reporting (coverage %, by-package), OpenLineage/test-result export, optional wrapper that runs
 the engine for the user.
+
+## Future capabilities — assessing test effectiveness & efficiency
+
+Ideas to push the tool from "find redundant/missing tests" toward "tell me how good and how economical
+our testing is." Roughly ordered by value/effort; all build on the existing verdict + propagation IR.
+
+**Efficiency (test economically):**
+- **Optimal / minimal test placement** *(high value)* — the propagation knows where each guarantee is
+  established and where it breaks, so we can compute the *minimal set of test locations* that covers a
+  guarantee across a lineage (test at each establishment point + right after each break; nothing in the
+  preserving stretches between). Output: "you test `order_id` not_null at 6 models in this chain; 2
+  suffice — the other 4 are inherited-redundant." The constructive inverse of REDUNDANT.
+- **Test consolidation at chokepoints** — find columns where many lineages converge; testing there
+  covers many downstream paths with fewer tests.
+
+**Effectiveness (test the right things):**
+- **Guarantee reach / test leverage** *(high value)* — for each test, how far downstream its guarantee
+  survives before a transform kills it. High-reach tests protect a lot; a test whose guarantee dies one
+  hop down only guards its own column. Ranks tests by the protection they actually provide.
+- **Importance-weighted coverage** — plain coverage % treats all columns equally; weight by blast
+  radius / PK-ness / feeds-an-exposure so "coverage of high-impact columns" is the headline number
+  (extends `Finding.priority`).
+- **Exposure-aware prioritization** — dbt `exposures` mark columns the business consumes (dashboards,
+  ML). Prioritize gaps on lineage paths that reach an exposure ("this untested nullable column feeds the
+  Revenue dashboard").
+- **`run_results.json` correlation** — a test that is structurally redundant AND has never failed in N
+  runs is a strong remove candidate; a frequently-failing one is load-bearing. Ties static analysis to
+  empirical history.
+- **`accepted_values` / `relationships` propagation** — extend the lattice to the other two generic
+  tests (does a value-domain survive a CASE/coalesce; does a FK relationship survive a join).
+- **Diff / regression mode** — compare two manifests (PR before/after): "your change made `order_id`
+  NOT_GUARANTEED and 3 downstream tests now rely on data" — change-safety for CI.
 
 ## Future direction — declared-assumption verification
 

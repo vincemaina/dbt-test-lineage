@@ -22,10 +22,10 @@ the grain-scoped UNCOVERED findings.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 
-from dbt_column_lineage.ir import LineageResult
+from dbt_column_lineage.ir import LineageResult, LineageType
 
 from dbt_test_lineage.propagate import propagate
 from dbt_test_lineage.tests_loader import DeclaredGuarantee
@@ -57,6 +57,7 @@ class Finding:
     verdict: Verdict
     reason: str
     path: tuple[PropagationStep, ...] = field(default_factory=tuple)
+    priority: int = 0  # higher = act first: key-ness (is a PK/grain) + downstream blast radius
 
     def __str__(self) -> str:
         return f"{self.kind.value}: {self.asset}.{self.column} [{self.guarantee.value}] — {self.reason}"
@@ -160,7 +161,20 @@ def analyze(
                         "anywhere in its lineage",
                         cv.path if cv else ())
             )
-    return Report(tuple(findings), relies_on_data, coverage)
+
+    # priority = key-ness (is a single-column grain / PK) + downstream blast radius (how many columns
+    # directly read it). Sorts the worst-first so a long MISSING/UNCOVERED list is actionable top-down.
+    out_degree: dict = defaultdict(int)
+    for e in result.edges:
+        if e.lineage_type == LineageType.DIRECT:
+            out_degree[(e.upstream.asset, e.upstream.column)] += 1
+
+    def _priority(f: Finding) -> int:
+        key = (f.asset, f.column)
+        return (10 if key in grain_cols else 0) + min(out_degree.get(key, 0), 10)
+
+    ranked = sorted((replace(f, priority=_priority(f)) for f in findings), key=lambda f: -f.priority)
+    return Report(tuple(ranked), relies_on_data, coverage)
 
 
 def finding_to_dict(f: Finding) -> dict:
@@ -170,6 +184,7 @@ def finding_to_dict(f: Finding) -> dict:
         "column": f.column,
         "guarantee": f.guarantee.value,
         "verdict": f.verdict.value,
+        "priority": f.priority,
         "reason": f.reason,
         "path": [{"column": s.column, "effect": s.effect.value, "detail": s.detail} for s in f.path],
     }

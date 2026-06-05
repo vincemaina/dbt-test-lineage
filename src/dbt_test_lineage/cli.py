@@ -32,16 +32,18 @@ def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool) -> Re
     return analyze(result, guarantees)
 
 
-def _render(report: Report) -> None:
+def _render(report: Report, limit: int = 0) -> None:
     for kind in ReportKind:
-        rows = report.of(kind)
+        rows = report.of(kind)  # already sorted worst-first by priority
         if not rows:
             continue
-        typer.secho(f"\n{kind.value} ({len(rows)})", bold=True)
-        for f in rows:
-            typer.echo(f"  {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}")
+        shown = rows[:limit] if limit else rows
+        suffix = f" (showing top {len(shown)})" if limit and len(rows) > limit else ""
+        typer.secho(f"\n{kind.value} ({len(rows)}){suffix}", bold=True)
+        for f in shown:
+            typer.echo(f"  [p{f.priority}] {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}")
             for step in f.path:
-                typer.echo(f"      {step.effect.value}: {step.column} {step.detail}".rstrip())
+                typer.echo(f"        {step.effect.value}: {step.column} {step.detail}".rstrip())
     if report.coverage:
         typer.secho("\ncoverage", bold=True)
         for kind, c in report.coverage.items():
@@ -61,13 +63,15 @@ def _render(report: Report) -> None:
 @app.command()
 def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
            assume_unique_key: bool = _ASSUME_UK,
+           limit: int = typer.Option(0, "--limit", "-n",
+                                     help="Show only the top-N (highest priority) findings per category"),
            as_json: bool = typer.Option(False, "--json", help="Emit JSON instead of text")) -> None:
     """Advisory report: redundant / missing / contradicted tests, each with its propagation path."""
     rep = _run(manifest, catalog, assume_unique_key)
     if as_json:
         typer.echo(json.dumps(report_to_dict(rep), indent=2))
     else:
-        _render(rep)
+        _render(rep, limit)
 
 
 @app.command()
