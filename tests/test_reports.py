@@ -78,9 +78,45 @@ def test_report_to_dict_shape():
     f = Finding(ReportKind.CONTRADICTION, "model.x", "c", NN, Verdict.VIOLATED, "proven null")
     d = report_to_dict(Report((f,), relies_on_data=3))
     assert d["summary"] == {
-        "REDUNDANT": 0, "MISSING": 0, "UNCOVERED": 0, "CONTRADICTION": 1, "relies_on_data": 3
+        "REDUNDANT": 0, "REDUNDANT_STRUCTURAL": 0, "MISSING": 0, "UNCOVERED": 0,
+        "CONTRADICTION": 1, "relies_on_data": 3,
     }
     assert d["findings"]["CONTRADICTION"][0]["column"] == "c"
+
+
+def test_redundant_structural_from_coalesce_not_null():
+    # not_null test on COALESCE(x, 'n/a') -> guaranteed by this model, not inherited
+    edges = (
+        _edge("model.m", "v", ROOT, "x",
+              TransformStep(TransformKind.COALESCE, {"default": "'n/a'", "arg_index": 0, "arg_count": 2})),
+    )
+    result = LineageResult(edges=edges)
+    guarantees = [DeclaredGuarantee("model.m", "v", NN)]  # untested upstream; established here
+    report = analyze(result, guarantees, kinds=(NN,))
+    struct = report.of(ReportKind.REDUNDANT_STRUCTURAL)
+    assert [(f.asset, f.column) for f in struct] == [("model.m", "v")]
+    assert report.of(ReportKind.REDUNDANT) == []  # not the inherited kind
+    assert "COALESCE" in struct[0].reason
+
+
+def test_redundant_structural_from_group_by_unique():
+    from dbt_test_lineage.verdict import GuaranteeKind
+
+    edges = (_edge("model.g", "k", ROOT, "k", TransformStep(TransformKind.IDENTITY, {})),)
+    ops = (ModelOperation(asset="model.g", grain=("k",)),)
+    result = LineageResult(edges=edges, operations=ops)
+    guarantees = [DeclaredGuarantee("model.g", "k", GuaranteeKind.UNIQUE)]
+    report = analyze(result, guarantees, kinds=(GuaranteeKind.UNIQUE,))
+    struct = report.of(ReportKind.REDUNDANT_STRUCTURAL)
+    assert [(f.asset, f.column) for f in struct] == [("model.g", "k")]
+
+
+def test_inherited_redundant_stays_redundant():
+    # the passthrough case must remain REDUNDANT (inherited), not structural
+    result, guarantees = _scenario()
+    report = analyze(result, guarantees, kinds=(NN,))
+    assert [(f.asset, f.column) for f in report.of(ReportKind.REDUNDANT)] == [(MID, "id")]
+    assert report.of(ReportKind.REDUNDANT_STRUCTURAL) == []
 
 
 def test_uncovered_flags_grain_column_with_no_coverage():

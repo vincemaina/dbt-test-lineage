@@ -55,7 +55,9 @@ Like not_null, fan-out is "may multiply" → `NOT_GUARANTEED`, not provable `VIO
 
 ## Phase 4 — Reports + CI gate + advisory CLI  ✅ done
 
-`reports.analyze` → `Report` of `Finding`s: **REDUNDANT** (tested + `.holds`), **MISSING** (untested +
+`reports.analyze` → `Report` of `Finding`s: **REDUNDANT** (tested + `PROVEN`, inherited from an upstream
+test), **REDUNDANT_STRUCTURAL** (tested + `ESTABLISHED`, guaranteed by this model's own SQL — GROUP BY
+grain / COALESCE / COUNT), **MISSING** (untested +
 `NOT_GUARANTEED` *whose upstream held the guarantee* — a dropped guarantee, kept targeted to avoid
 noise), **UNCOVERED** (grain/key column with no guarantee anywhere in its lineage — zero-coverage keys),
 **CONTRADICTION** (tested + provable `VIOLATED`), plus a per-kind **`coverage`** stat (covered/total)

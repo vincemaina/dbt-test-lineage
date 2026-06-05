@@ -23,8 +23,10 @@ propagates `not_null` / `unique` guarantees to verdicts. See [`../../docs/archit
   KEY-SETS (establish from `operations.grain`/`distinct`, inherit through injective passthrough when not
   `may_multiply_rows`).
 - `reports.py` — `analyze(result, guarantees, kinds)` → `Report` of `Finding`s: REDUNDANT (tested +
-  `.holds`), MISSING (untested + `NOT_GUARANTEED` whose upstream held the guarantee), UNCOVERED
-  (grain/key column with no guarantee anywhere in its lineage), CONTRADICTION (tested + provable
-  `VIOLATED`); + `relies_on_data` count and a per-kind `coverage` stat (covered/total). `report_to_dict`.
+  `PROVEN` — inherited from upstream test), REDUNDANT_STRUCTURAL (tested + `ESTABLISHED` — this model's
+  own SQL guarantees it: GROUP BY grain / COALESCE / COUNT / ROW_NUMBER), MISSING (untested +
+  `NOT_GUARANTEED` whose upstream held), UNCOVERED (grain/key column with no guarantee anywhere in its
+  lineage), CONTRADICTION (tested + provable `VIOLATED`); + `relies_on_data` and a per-kind `coverage`
+  stat. `report_to_dict`.
 - `cli.py` — Typer CLI: `report` (advisory text/JSON) and `check` (CI gate; exits 1 on contradictions,
   `--strict` also on missing).

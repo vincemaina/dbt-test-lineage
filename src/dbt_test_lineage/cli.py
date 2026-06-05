@@ -41,7 +41,8 @@ def _render(report: Report) -> None:
             typer.echo(f"  {kind}: {c['covered']}/{c['total']} columns guaranteed "
                        f"({100 * c['covered'] // total}%), {c['uncovered']} uncovered")
     typer.echo(
-        f"\nsummary: {len(report.of(ReportKind.REDUNDANT))} redundant, "
+        f"\nsummary: {len(report.of(ReportKind.REDUNDANT))} redundant (inherited), "
+        f"{len(report.of(ReportKind.REDUNDANT_STRUCTURAL))} redundant (structural), "
         f"{len(report.of(ReportKind.MISSING))} missing, "
         f"{len(report.of(ReportKind.UNCOVERED))} uncovered keys, "
         f"{len(report.of(ReportKind.CONTRADICTION))} contradiction, "

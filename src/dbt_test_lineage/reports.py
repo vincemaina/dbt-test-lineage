@@ -1,7 +1,11 @@
 """Turn propagated verdicts + declared tests into actionable findings (architecture §5).
 
 Report kinds, biased toward what we can prove (a false alarm costs more than a miss):
-- REDUNDANT     — a test whose guarantee is already PROVEN/ESTABLISHED upstream → safe to remove.
+- REDUNDANT            — INHERITED: the guarantee is already PROVEN by an upstream test + preserving
+                         transforms (a passthrough re-test) → safe to remove while the upstream test stays.
+- REDUNDANT_STRUCTURAL — the test is guaranteed by THIS model's own SQL (`GROUP BY` grain makes a column
+                         unique; `COALESCE`/`COUNT`/`ROW_NUMBER` make it not_null) → the test re-checks
+                         what the structure already guarantees, independent of any upstream test.
 - MISSING       — an untested column that is NOT_GUARANTEED *and whose upstream held the guarantee*
                   (the guarantee was dropped by a transform and never re-tested) → a real coverage hole.
 - UNCOVERED     — a **grain/key** column with NO guarantee anywhere in its lineage (untested, not
@@ -37,7 +41,8 @@ _DEFAULT_KINDS = (GuaranteeKind.NOT_NULL, GuaranteeKind.UNIQUE)
 
 
 class ReportKind(str, Enum):
-    REDUNDANT = "REDUNDANT"
+    REDUNDANT = "REDUNDANT"  # inherited: guarantee already proven by an UPSTREAM test + passthrough
+    REDUNDANT_STRUCTURAL = "REDUNDANT_STRUCTURAL"  # this model's own logic guarantees it (GROUP BY, COALESCE, …)
     MISSING = "MISSING"
     UNCOVERED = "UNCOVERED"
     CONTRADICTION = "CONTRADICTION"
@@ -89,7 +94,10 @@ def analyze(
     findings: list[Finding] = []
     relies_on_data = 0
     coverage: dict = {}
-    grain_cols = {(o.asset, c) for o in result.operations for c in o.grain}
+    # UNCOVERED findings are scoped to SINGLE-column grains — a model's natural primary key — so the list
+    # stays actionable. (Every grain column would be ~noise: many GROUP BY keys are nullable dimensions;
+    # the whole-population picture is the `coverage` stat instead.)
+    grain_cols = {(o.asset, o.grain[0]) for o in result.operations if len(o.grain) == 1}
     for kind in kinds:
         verdicts = propagate(result, guarantees, kind)
         tested = {(g.asset, g.column) for g in guarantees if g.kind == kind}
@@ -105,7 +113,15 @@ def analyze(
             cv = verdicts.get((asset, column))
             if cv is None:  # no incoming lineage (a source/seed-level test) — nothing to compare
                 continue
-            if cv.verdict.holds:
+            if cv.verdict == Verdict.ESTABLISHED:  # guaranteed by this model's own logic
+                est = next((s for s in cv.path if s.effect == Effect.ESTABLISH), None)
+                why = "structurally guaranteed by this model"
+                if est:
+                    why += f" ({est.detail})"
+                findings.append(
+                    Finding(ReportKind.REDUNDANT_STRUCTURAL, asset, column, kind, cv.verdict, why, cv.path)
+                )
+            elif cv.verdict == Verdict.PROVEN:  # inherited from an upstream test via passthrough
                 findings.append(
                     Finding(ReportKind.REDUNDANT, asset, column, kind, cv.verdict,
                             "guarantee already proven by upstream test + preserving transforms", cv.path)
@@ -138,7 +154,8 @@ def analyze(
             findings.append(
                 Finding(ReportKind.UNCOVERED, asset, column, kind,
                         cv.verdict if cv else Verdict.UNKNOWN,
-                        f"grain/key column with no {kind.value} guarantee anywhere in its lineage",
+                        f"primary-key column (single-column grain) with no {kind.value} guarantee "
+                        "anywhere in its lineage",
                         cv.path if cv else ())
             )
     return Report(tuple(findings), relies_on_data, coverage)

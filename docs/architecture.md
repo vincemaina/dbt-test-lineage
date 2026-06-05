@@ -146,21 +146,30 @@ These combination semantics are *why* the engine records `arg_index`, `branch`, 
 Defined precisely over the lattice (does a test exist on the column × its computed verdict, which
 excludes the column's own test). The two headline reports are sound and actionable:
 
-- **REDUNDANT** (advisory, high-confidence): a column carries a `not_null`/`unique` test, but its
-  computed verdict already `.holds` (`PROVEN`/`ESTABLISHED`) from an upstream test + preserving
-  transforms. The test re-checks something the structure already guarantees → candidate for removal to
-  cut CI runtime. This is the most defensible signal — it only fires when we can *prove* redundancy.
+- **REDUNDANT** (advisory, high-confidence): a tested column whose verdict is **`PROVEN`** — the
+  guarantee is **inherited** from an upstream test through preserving transforms (a passthrough re-test).
+  Safe to remove *while the upstream test stays* (there is a coupling). The most defensible signal — only
+  fires when we can prove the redundancy.
+- **REDUNDANT_STRUCTURAL** (advisory): a tested column whose verdict is **`ESTABLISHED`** — the guarantee
+  is created by **this model's own SQL**, independent of any upstream test: a `GROUP BY` grain makes a
+  column unique; `COALESCE(x, <literal>)` / `COUNT` / `ROW_NUMBER` make it not_null. The test re-checks
+  what the structure itself guarantees → removable regardless of upstream tests (only the model's SQL
+  must hold). Distinct from REDUNDANT because the *reason* (and the coupling) differ: structural
+  redundancy is local and more safely removable; inherited redundancy depends on the upstream test.
 - **MISSING** (advisory): a column is **untested** and `NOT_GUARANTEED` **and the transform that broke
   it acted on an upstream column that held the guarantee** — i.e. a guarantee existed upstream and a
   transform dropped it without a re-test. A real, targeted coverage hole (kept narrow to stay
   high-signal; the broad "never covered" set is UNCOVERED, below).
-- **UNCOVERED** (advisory): a **grain/key** column with **no guarantee anywhere in its lineage**
-  (untested, not structurally guaranteed, nothing upstream held it — its verdict is `UNKNOWN`, or
-  `NOT_GUARANTEED` with no held ancestor). Scoped to grain columns (`operations.grain`) so the finding
-  list is actionable — "this is a model's key and has zero coverage end-to-end." The whole-population
-  picture is the separate **`coverage`** statistic (per kind: of the columns the lineage reaches, how
-  many are covered = tested or structurally guaranteed). Together, MISSING + UNCOVERED + coverage answer
-  "where are the testing gaps?": dropped guarantees, zero-coverage keys, and the overall %.
+- **UNCOVERED** (advisory): a **single-column-grain** column — a model's natural primary key — with **no
+  guarantee anywhere in its lineage** (untested, not structurally guaranteed, nothing upstream held it).
+  Scoped to *single-column* grains (`len(operations.grain) == 1`) deliberately: every grain column would
+  be noise (many GROUP BY keys are nullable dimensions; real-repo had ~1157 such), whereas a
+  single-column grain is the model's key and "this PK has zero coverage" is a clean, actionable signal.
+  The whole-population picture is the separate **`coverage`** statistic (per kind: of the columns the
+  lineage reaches, how many are covered = tested or structurally guaranteed). Together, MISSING +
+  UNCOVERED + coverage answer "where are the testing gaps?": dropped guarantees, uncovered keys, and the
+  overall %. *(Widening UNCOVERED to non-grain key-like columns needs a naming/downstream-key-usage
+  heuristic — deferred.)*
 - **CONTRADICTION** (CI-failing, rare/strict): a column has a declared test but its verdict is
   `VIOLATED` — the transforms *prove* the guarantee cannot hold. Reserved for genuinely-provable cases
   so the CI gate never false-alarms. `NOT_GUARANTEED` is **not** a contradiction (the test may be valid;
