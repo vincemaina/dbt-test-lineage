@@ -1,5 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "dbt-test-lineage"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "dbt-column-lineage",
+    "typer>=0.26.7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dbt_test_lineage"]
+
+# Consume the sibling lineage engine as an editable path dependency (see docs/architecture.md §2).
+[tool.uv.sources]
+dbt-column-lineage = { path = "../dbt-column-lineage", editable = true }
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.16",
+]
