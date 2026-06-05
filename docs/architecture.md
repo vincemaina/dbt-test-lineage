@@ -34,9 +34,16 @@ guarantee semantics live here; no lineage extraction lives here.
    blocker. A **CI gate** renderer also exists (non-zero exit on `CONTRADICTION`, `--strict` on coverage
    gaps) from the same analysis, but until we can *prove* `VIOLATED` it rarely fires, so it stays a
    secondary surface. Lead with `report`. (User steer, 2026-06-05.)
-5. **dbt artifacts are the test source.** Declared tests come from `manifest.json` test nodes
-   (`resource_type: "test"`, `test_metadata.name`, `column_name`, `attached_node`). YAML is never read
-   directly; the compiled manifest is the contract — mirrors the engine's stance.
+5. **dbt artifacts are the guarantee source, with pluggable opt-in sources.** Explicit tests come from
+   `manifest.json` test nodes (`resource_type: "test"`, `test_metadata.name`, `column_name`,
+   `attached_node`). Each `DeclaredGuarantee` carries a `source` so additional, **opt-in** sources can be
+   layered in without being hardcoded to one project. The first is **`unique_key`** (`--assume-unique-key`):
+   a model's `config.unique_key` implies `not_null`+`unique` on the PK — *off by default* because vanilla
+   dbt's `unique_key` only drives incremental merge and does NOT enforce uniqueness; *on* for projects
+   that enforce it (e.g. a `unique_key` override that auto-generates the tests). Single-column key ⇒
+   not_null+unique; composite key ⇒ not_null per component only (the *tuple* is unique, not the parts).
+   Implied guarantees seed propagation and count as coverage, but only **explicit** tests are reported as
+   removable (REDUNDANT). YAML is never read directly; the compiled manifest is the contract.
 6. **Facts in, verdicts out — but always explainable.** Every verdict carries the propagation path (the
    chain of columns + transforms) that produced it, so a human can audit it. Never assert without a why.
 

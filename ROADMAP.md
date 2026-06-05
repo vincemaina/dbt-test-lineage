@@ -62,8 +62,15 @@ grain / COALESCE / COUNT), **MISSING** (untested +
 noise), **UNCOVERED** (grain/key column with no guarantee anywhere in its lineage — zero-coverage keys),
 **CONTRADICTION** (tested + provable `VIOLATED`), plus a per-kind **`coverage`** stat (covered/total)
 and a `relies_on_data` count. Typer CLI `cli.py`: `report` (text + `--json`, shows path + coverage) and
-`check` (exits 1 on contradictions, `--strict` also on missing). 65 tests, lint clean. Validated
-end-to-end via the CLI on the real repo. Primarily a report tool (CI gate secondary — user steer).
+`check` (exits 1 on contradictions, `--strict` also on missing). Validated end-to-end via the CLI on the
+real repo. Primarily a report tool (CI gate secondary — user steer).
+
+**Opt-in guarantee sources.** `DeclaredGuarantee.source` + `tests_loader.unique_key_guarantees` +
+CLI `--assume-unique-key`: a model's `config.unique_key` implies not_null+unique on the PK (single-col ⇒
+both; composite ⇒ not_null per component). Off by default (vanilla dbt doesn't enforce unique_key); for
+projects that do, it seeds propagation, counts as coverage, and suppresses UNCOVERED on those PKs, while
+findings still report only on explicit tests. Real repo: 411 models declare a usable unique_key → 824
+implied guarantees. 72 tests, lint clean.
 
 ## Phase 5 — Breadth & ergonomics  ◻
 

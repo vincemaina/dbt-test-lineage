@@ -22,12 +22,15 @@ _KIND_BY_TEST_NAME = {
 
 @dataclass(frozen=True)
 class DeclaredGuarantee:
-    """A guarantee a dbt test asserts on a specific (model, column). `asset` is the model's unique_id,
-    matching the `ColumnRef.asset` the lineage engine emits — so guarantees align with edges directly."""
+    """A guarantee asserted on a specific (model, column). `asset` is the model's unique_id, matching the
+    `ColumnRef.asset` the lineage engine emits — so guarantees align with edges directly. `source`
+    distinguishes an explicit dbt test (`"test"`, the only kind that's a removable test node) from a
+    config-implied guarantee (e.g. `"unique_key"`)."""
 
     asset: str  # attached_node: the model unique_id the test guards
     column: str  # normalized (lower-cased) column name
     kind: GuaranteeKind
+    source: str = "test"
 
 
 @dataclass(frozen=True)
@@ -67,5 +70,50 @@ def load_test_inventory(manifest_path: str | Path) -> TestInventory:
 
 
 def load_declared_guarantees(manifest_path: str | Path) -> list[DeclaredGuarantee]:
-    """Convenience: just the MVP (not_null / unique) guarantees."""
+    """Convenience: just the MVP (not_null / unique) guarantees from explicit tests."""
     return list(load_test_inventory(manifest_path).guarantees)
+
+
+def _key_columns(unique_key: object) -> list[str] | None:
+    """Plain column name(s) from a `unique_key` config (str or list of str). Returns None for an
+    expression / SQL key (e.g. `coalesce(a,b)`, `a || b`) we can't map to columns."""
+    if isinstance(unique_key, str):
+        raw = [unique_key]
+    elif isinstance(unique_key, list):
+        raw = [c for c in unique_key if isinstance(c, str)]
+    else:
+        return None
+    cols: list[str] = []
+    for c in raw:
+        c = c.strip()
+        if not c or any(ch in c for ch in " ()|,'\"."):  # not a bare identifier -> an expression
+            return None
+        cols.append(c.lower())
+    return cols or None
+
+
+def unique_key_guarantees(
+    manifest_path: str | Path,
+    kinds: tuple[GuaranteeKind, ...] = (GuaranteeKind.NOT_NULL, GuaranteeKind.UNIQUE),
+) -> list[DeclaredGuarantee]:
+    """OPT-IN guarantees implied by each model's `config.unique_key` — for projects that enforce the key
+    (e.g. a `unique_key` override that auto-generates not_null/unique tests on the PK). Vanilla dbt does
+    NOT enforce `unique_key`, so this is off by default. A single-column key implies `unique` + `not_null`
+    on it; a COMPOSITE key implies `not_null` on each component only (the tuple is unique, not the parts —
+    a single-column `unique` would be unsound). `source="unique_key"`."""
+    manifest = json.loads(Path(manifest_path).read_text())
+    out: list[DeclaredGuarantee] = []
+    for uid, node in manifest.get("nodes", {}).items():
+        if node.get("resource_type") != "model":
+            continue
+        cols = _key_columns((node.get("config") or {}).get("unique_key"))
+        if not cols:
+            continue
+        asset = node.get("unique_id", uid)
+        composite = len(cols) > 1
+        for col in cols:
+            if GuaranteeKind.NOT_NULL in kinds:
+                out.append(DeclaredGuarantee(asset, col, GuaranteeKind.NOT_NULL, source="unique_key"))
+            if GuaranteeKind.UNIQUE in kinds and not composite:
+                out.append(DeclaredGuarantee(asset, col, GuaranteeKind.UNIQUE, source="unique_key"))
+    return out

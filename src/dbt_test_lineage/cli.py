@@ -10,18 +10,26 @@ import typer
 from dbt_column_lineage.engine import extract_lineage
 
 from dbt_test_lineage.reports import Report, ReportKind, analyze, report_to_dict
-from dbt_test_lineage.tests_loader import load_declared_guarantees
+from dbt_test_lineage.tests_loader import load_declared_guarantees, unique_key_guarantees
 
 app = typer.Typer(help="Propagate dbt test guarantees through column lineage to find redundant, "
                        "missing, and contradicted tests.", no_args_is_help=True)
 
 _MANIFEST = typer.Argument(..., help="Path to the dbt manifest.json")
 _CATALOG = typer.Option(None, "--catalog", "-c", help="Path to catalog.json (optional; improves schema)")
+_ASSUME_UK = typer.Option(
+    False, "--assume-unique-key",
+    help="Treat each model's config.unique_key as not_null+unique guarantees on the PK. Opt-in: enable "
+         "only if your project enforces unique_key (e.g. auto-generates tests for it); vanilla dbt does not.",
+)
 
 
-def _run(manifest: Path, catalog: Optional[Path]) -> Report:
+def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool) -> Report:
     result = extract_lineage(manifest, catalog)
-    return analyze(result, load_declared_guarantees(manifest))
+    guarantees = load_declared_guarantees(manifest)
+    if assume_unique_key:
+        guarantees += unique_key_guarantees(manifest)
+    return analyze(result, guarantees)
 
 
 def _render(report: Report) -> None:
@@ -52,9 +60,10 @@ def _render(report: Report) -> None:
 
 @app.command()
 def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
+           assume_unique_key: bool = _ASSUME_UK,
            as_json: bool = typer.Option(False, "--json", help="Emit JSON instead of text")) -> None:
     """Advisory report: redundant / missing / contradicted tests, each with its propagation path."""
-    rep = _run(manifest, catalog)
+    rep = _run(manifest, catalog, assume_unique_key)
     if as_json:
         typer.echo(json.dumps(report_to_dict(rep), indent=2))
     else:
@@ -63,10 +72,11 @@ def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
 
 @app.command()
 def check(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
+          assume_unique_key: bool = _ASSUME_UK,
           strict: bool = typer.Option(False, "--strict",
                                       help="Also fail on MISSING coverage holes")) -> None:
     """CI gate: exit non-zero on provable contradictions (and, with --strict, on missing coverage)."""
-    rep = _run(manifest, catalog)
+    rep = _run(manifest, catalog, assume_unique_key)
     _render(rep)
     contradictions = len(rep.of(ReportKind.CONTRADICTION))
     missing = len(rep.of(ReportKind.MISSING))

@@ -10,9 +10,10 @@ propagates `not_null` / `unique` guarantees to verdicts. See [`../../docs/archit
   (`PROVEN`/`ESTABLISHED`/`VIOLATED`/`UNKNOWN`, with `.holds`), `Effect`, and the explainable
   `ColumnVerdict` IR (carries the ordered `PropagationStep` path) + `verdict_to_dict`.
 - `tests_loader.py` — parse `manifest.json` test nodes (`resource_type:"test"`) into typed
-  `DeclaredGuarantee(asset, column, kind)` for not_null/unique; `load_test_inventory` also tallies
-  skipped tests (`TestInventory.skipped_by_name`) for coverage. (`asset` = attached_node unique_id, which
-  may be a model, seed, or source — all valid propagation seed points.)
+  `DeclaredGuarantee(asset, column, kind, source)` for not_null/unique; `load_test_inventory` also tallies
+  skipped tests. (`asset` = attached_node unique_id — model, seed, or source.) `unique_key_guarantees`
+  is the OPT-IN config source: `config.unique_key` → not_null+unique on the PK (`source="unique_key"`;
+  single-col ⇒ both, composite ⇒ not_null per component only).
 
 - `rules.py` — per-transform-step guarantee effects. `not_null_effect(step)` maps the engine's
   `TransformStep` facts to an `Effect` per §4.1 (conservative null-preserving function allowlist);

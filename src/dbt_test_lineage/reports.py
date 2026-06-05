@@ -99,17 +99,19 @@ def analyze(
     # the whole-population picture is the `coverage` stat instead.)
     grain_cols = {(o.asset, o.grain[0]) for o in result.operations if len(o.grain) == 1}
     for kind in kinds:
-        verdicts = propagate(result, guarantees, kind)
-        tested = {(g.asset, g.column) for g in guarantees if g.kind == kind}
+        verdicts = propagate(result, guarantees, kind)  # seeds from explicit tests AND implied (config)
+        explicit = {(g.asset, g.column) for g in guarantees if g.kind == kind and g.source == "test"}
+        implied = {(g.asset, g.column) for g in guarantees if g.kind == kind and g.source != "test"}
+        asserted = explicit | implied  # any column whose guarantee is declared (test or config)
         held = {k for k, cv in verdicts.items() if cv.verdict.holds}
-        universe = set(verdicts) | tested  # every column the lineage can speak about
-        covered = tested | held
+        universe = set(verdicts) | asserted  # every column the lineage can speak about
+        covered = asserted | held  # config-implied guarantees count as coverage too
         uncovered = universe - covered
         coverage[kind.value] = {
             "total": len(universe), "covered": len(covered), "uncovered": len(uncovered)
         }
 
-        for asset, column in tested:  # REDUNDANT / CONTRADICTION over tested columns
+        for asset, column in explicit:  # findings report only on EXPLICIT tests (removable test nodes)
             cv = verdicts.get((asset, column))
             if cv is None:  # no incoming lineage (a source/seed-level test) — nothing to compare
                 continue
@@ -135,11 +137,11 @@ def analyze(
                 relies_on_data += 1
 
         missing_keys: set = set()
-        for (asset, column), cv in verdicts.items():  # MISSING over untested columns
-            if (asset, column) in tested or cv.verdict != Verdict.NOT_GUARANTEED:
+        for (asset, column), cv in verdicts.items():  # MISSING over uncovered columns
+            if (asset, column) in asserted or cv.verdict != Verdict.NOT_GUARANTEED:
                 continue
             # only flag when the guarantee actually existed upstream and was dropped here
-            dropped = [s for s in cv.path if s.effect == Effect.BREAK and _held(s.column, verdicts, tested)]
+            dropped = [s for s in cv.path if s.effect == Effect.BREAK and _held(s.column, verdicts, asserted)]
             if dropped:
                 missing_keys.add((asset, column))
                 findings.append(
