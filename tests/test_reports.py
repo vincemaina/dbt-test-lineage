@@ -5,6 +5,7 @@ from dbt_column_lineage.ir import (
     LineageEdge,
     LineageResult,
     LineageType,
+    ModelOperation,
     TransformKind,
     TransformStep,
 )
@@ -76,5 +77,27 @@ def test_relies_on_data_counts_tested_not_guaranteed():
 def test_report_to_dict_shape():
     f = Finding(ReportKind.CONTRADICTION, "model.x", "c", NN, Verdict.VIOLATED, "proven null")
     d = report_to_dict(Report((f,), relies_on_data=3))
-    assert d["summary"] == {"REDUNDANT": 0, "MISSING": 0, "CONTRADICTION": 1, "relies_on_data": 3}
+    assert d["summary"] == {
+        "REDUNDANT": 0, "MISSING": 0, "UNCOVERED": 0, "CONTRADICTION": 1, "relies_on_data": 3
+    }
     assert d["findings"]["CONTRADICTION"][0]["column"] == "c"
+
+
+def test_uncovered_flags_grain_column_with_no_coverage():
+    # GRAIN model.g groups by k, but k has no not_null guarantee anywhere in its lineage
+    edges = (_edge("model.g", "k", ROOT, "k", TransformStep(TransformKind.IDENTITY, {})),)
+    ops = (ModelOperation(asset="model.g", grain=("k",)),)
+    result = LineageResult(edges=edges, operations=ops)
+    report = analyze(result, [], kinds=(NN,))  # no tests at all
+    unc = report.of(ReportKind.UNCOVERED)
+    assert [(f.asset, f.column) for f in unc] == [("model.g", "k")]
+    assert report.coverage["not_null"]["uncovered"] >= 1
+
+
+def test_uncovered_excludes_covered_grain():
+    # same grain column, but now tested upstream -> it holds -> not uncovered
+    edges = (_edge("model.g", "k", ROOT, "k", TransformStep(TransformKind.IDENTITY, {})),)
+    ops = (ModelOperation(asset="model.g", grain=("k",)),)
+    result = LineageResult(edges=edges, operations=ops)
+    report = analyze(result, [DeclaredGuarantee(ROOT, "k", NN)], kinds=(NN,))
+    assert report.of(ReportKind.UNCOVERED) == []  # model.g.k inherits PROVEN -> covered

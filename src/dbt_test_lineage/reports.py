@@ -1,13 +1,20 @@
 """Turn propagated verdicts + declared tests into actionable findings (architecture §5).
 
-Three report kinds, biased toward what we can prove (a false alarm costs more than a miss):
+Report kinds, biased toward what we can prove (a false alarm costs more than a miss):
 - REDUNDANT     — a test whose guarantee is already PROVEN/ESTABLISHED upstream → safe to remove.
 - MISSING       — an untested column that is NOT_GUARANTEED *and whose upstream held the guarantee*
                   (the guarantee was dropped by a transform and never re-tested) → a real coverage hole.
+- UNCOVERED     — a **grain/key** column with NO guarantee anywhere in its lineage (untested, not
+                  structurally guaranteed, nothing upstream held it) → a key with zero coverage. Scoped
+                  to grain columns so the list stays actionable; the full picture is the `coverage` stat.
 - CONTRADICTION — a test whose verdict is the (rare) provable VIOLATED → the only CI-failing finding.
 
 A tested column that is merely NOT_GUARANTEED is NOT a finding — the test is load-bearing, doing real
 work; it is surfaced only in the informational `relies_on_data` count.
+
+`coverage` (per kind) is the whole-population view: of the columns the lineage reaches, how many are
+covered (tested or structurally guaranteed) vs not — the "how much is untested" number, independent of
+the grain-scoped UNCOVERED findings.
 """
 
 from collections import defaultdict
@@ -32,6 +39,7 @@ _DEFAULT_KINDS = (GuaranteeKind.NOT_NULL, GuaranteeKind.UNIQUE)
 class ReportKind(str, Enum):
     REDUNDANT = "REDUNDANT"
     MISSING = "MISSING"
+    UNCOVERED = "UNCOVERED"
     CONTRADICTION = "CONTRADICTION"
 
 
@@ -53,6 +61,7 @@ class Finding:
 class Report:
     findings: tuple[Finding, ...]
     relies_on_data: int = 0  # tested columns that are NOT_GUARANTEED (load-bearing, not a problem)
+    coverage: dict = field(default_factory=dict)  # kind -> {total, covered, uncovered}
 
     def of(self, kind: ReportKind) -> list[Finding]:
         return [f for f in self.findings if f.kind == kind]
@@ -79,9 +88,18 @@ def analyze(
 ) -> Report:
     findings: list[Finding] = []
     relies_on_data = 0
+    coverage: dict = {}
+    grain_cols = {(o.asset, c) for o in result.operations for c in o.grain}
     for kind in kinds:
         verdicts = propagate(result, guarantees, kind)
         tested = {(g.asset, g.column) for g in guarantees if g.kind == kind}
+        held = {k for k, cv in verdicts.items() if cv.verdict.holds}
+        universe = set(verdicts) | tested  # every column the lineage can speak about
+        covered = tested | held
+        uncovered = universe - covered
+        coverage[kind.value] = {
+            "total": len(universe), "covered": len(covered), "uncovered": len(uncovered)
+        }
 
         for asset, column in tested:  # REDUNDANT / CONTRADICTION over tested columns
             cv = verdicts.get((asset, column))
@@ -100,17 +118,30 @@ def analyze(
             elif cv.verdict == Verdict.NOT_GUARANTEED:
                 relies_on_data += 1
 
+        missing_keys: set = set()
         for (asset, column), cv in verdicts.items():  # MISSING over untested columns
             if (asset, column) in tested or cv.verdict != Verdict.NOT_GUARANTEED:
                 continue
             # only flag when the guarantee actually existed upstream and was dropped here
             dropped = [s for s in cv.path if s.effect == Effect.BREAK and _held(s.column, verdicts, tested)]
             if dropped:
+                missing_keys.add((asset, column))
                 findings.append(
                     Finding(ReportKind.MISSING, asset, column, kind, cv.verdict,
                             f"upstream guarantee dropped by {dropped[-1].detail} and not re-tested", cv.path)
                 )
-    return Report(tuple(findings), relies_on_data)
+
+        for asset, column in sorted(uncovered):  # UNCOVERED — grain/key columns with zero coverage
+            if (asset, column) in missing_keys or (asset, column) not in grain_cols:
+                continue
+            cv = verdicts.get((asset, column))
+            findings.append(
+                Finding(ReportKind.UNCOVERED, asset, column, kind,
+                        cv.verdict if cv else Verdict.UNKNOWN,
+                        f"grain/key column with no {kind.value} guarantee anywhere in its lineage",
+                        cv.path if cv else ())
+            )
+    return Report(tuple(findings), relies_on_data, coverage)
 
 
 def finding_to_dict(f: Finding) -> dict:
@@ -133,5 +164,6 @@ def report_to_dict(report: Report) -> dict:
         "summary": {k.value: len(report.of(k)) for k in ReportKind} | {
             "relies_on_data": report.relies_on_data
         },
+        "coverage": report.coverage,
         "findings": {k: by_kind.get(k, []) for k in (r.value for r in ReportKind)},
     }

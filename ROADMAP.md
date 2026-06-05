@@ -56,11 +56,12 @@ Like not_null, fan-out is "may multiply" → `NOT_GUARANTEED`, not provable `VIO
 ## Phase 4 — Reports + CI gate + advisory CLI  ✅ done
 
 `reports.analyze` → `Report` of `Finding`s: **REDUNDANT** (tested + `.holds`), **MISSING** (untested +
-`NOT_GUARANTEED` *whose upstream held the guarantee* — i.e. a real coverage hole where a transform
-dropped it, kept targeted to avoid noise), **CONTRADICTION** (tested + provable `VIOLATED`), plus a
-`relies_on_data` count (tested `NOT_GUARANTEED` = load-bearing, not a finding). Typer CLI `cli.py`:
-`report` (text + `--json`, shows propagation path) and `check` (exits 1 on contradictions, `--strict`
-also on missing). 63 tests, lint clean. Validated end-to-end via the CLI on the real repo.
+`NOT_GUARANTEED` *whose upstream held the guarantee* — a dropped guarantee, kept targeted to avoid
+noise), **UNCOVERED** (grain/key column with no guarantee anywhere in its lineage — zero-coverage keys),
+**CONTRADICTION** (tested + provable `VIOLATED`), plus a per-kind **`coverage`** stat (covered/total)
+and a `relies_on_data` count. Typer CLI `cli.py`: `report` (text + `--json`, shows path + coverage) and
+`check` (exits 1 on contradictions, `--strict` also on missing). 65 tests, lint clean. Validated
+end-to-end via the CLI on the real repo. Primarily a report tool (CI gate secondary — user steer).
 
 ## Phase 5 — Breadth & ergonomics  ◻
 

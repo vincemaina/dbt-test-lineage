@@ -150,9 +150,17 @@ excludes the column's own test). The two headline reports are sound and actionab
   computed verdict already `.holds` (`PROVEN`/`ESTABLISHED`) from an upstream test + preserving
   transforms. The test re-checks something the structure already guarantees → candidate for removal to
   cut CI runtime. This is the most defensible signal — it only fires when we can *prove* redundancy.
-- **MISSING** (advisory): a column is **untested** and `NOT_GUARANTEED` — the structure admits a null /
-  duplicate (a `B` transform on the path) and nothing guards it. A coverage hole worth a test. (A
-  `PROVEN` untested column is *not* missing — structure already guarantees it.)
+- **MISSING** (advisory): a column is **untested** and `NOT_GUARANTEED` **and the transform that broke
+  it acted on an upstream column that held the guarantee** — i.e. a guarantee existed upstream and a
+  transform dropped it without a re-test. A real, targeted coverage hole (kept narrow to stay
+  high-signal; the broad "never covered" set is UNCOVERED, below).
+- **UNCOVERED** (advisory): a **grain/key** column with **no guarantee anywhere in its lineage**
+  (untested, not structurally guaranteed, nothing upstream held it — its verdict is `UNKNOWN`, or
+  `NOT_GUARANTEED` with no held ancestor). Scoped to grain columns (`operations.grain`) so the finding
+  list is actionable — "this is a model's key and has zero coverage end-to-end." The whole-population
+  picture is the separate **`coverage`** statistic (per kind: of the columns the lineage reaches, how
+  many are covered = tested or structurally guaranteed). Together, MISSING + UNCOVERED + coverage answer
+  "where are the testing gaps?": dropped guarantees, zero-coverage keys, and the overall %.
 - **CONTRADICTION** (CI-failing, rare/strict): a column has a declared test but its verdict is
   `VIOLATED` — the transforms *prove* the guarantee cannot hold. Reserved for genuinely-provable cases
   so the CI gate never false-alarms. `NOT_GUARANTEED` is **not** a contradiction (the test may be valid;

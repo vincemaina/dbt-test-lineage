@@ -34,9 +34,16 @@ def _render(report: Report) -> None:
             typer.echo(f"  {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}")
             for step in f.path:
                 typer.echo(f"      {step.effect.value}: {step.column} {step.detail}".rstrip())
+    if report.coverage:
+        typer.secho("\ncoverage", bold=True)
+        for kind, c in report.coverage.items():
+            total = c["total"] or 1
+            typer.echo(f"  {kind}: {c['covered']}/{c['total']} columns guaranteed "
+                       f"({100 * c['covered'] // total}%), {c['uncovered']} uncovered")
     typer.echo(
         f"\nsummary: {len(report.of(ReportKind.REDUNDANT))} redundant, "
         f"{len(report.of(ReportKind.MISSING))} missing, "
+        f"{len(report.of(ReportKind.UNCOVERED))} uncovered keys, "
         f"{len(report.of(ReportKind.CONTRADICTION))} contradiction, "
         f"{report.relies_on_data} tests rely on data (load-bearing, ok)"
     )
