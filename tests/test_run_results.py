@@ -2,9 +2,32 @@
 
 import json
 
-from dbt_test_lineage.tests_loader import load_run_results
+from dbt_test_lineage.tests_loader import load_run_metadata, load_run_results
 from dbt_test_lineage.tests_loader import test_uid_index as build_test_uid_index
 from dbt_test_lineage.verdict import GuaranteeKind
+
+
+def _write_rr(tmp, which):
+    path = tmp / "run_results.json"
+    path.write_text(json.dumps({
+        "metadata": {"generated_at": "2026-06-05T00:00:00Z", "dbt_version": "1.11.4"},
+        "args": {"which": which, "invocation_command": f"dbt {which}", "target": "prod"},
+        "elapsed_time": 12.0, "results": [],
+    }))
+    return path
+
+
+def test_metadata_flags_non_test_command(tmp_path):
+    # `dbt docs generate` / `compile` do not execute tests -> executed_tests False
+    assert load_run_metadata(_write_rr(tmp_path, "generate"))["executed_tests"] is False
+    assert load_run_metadata(_write_rr(tmp_path, "compile"))["executed_tests"] is False
+
+
+def test_metadata_recognizes_test_executing_commands(tmp_path):
+    for which in ("build", "test"):
+        meta = load_run_metadata(_write_rr(tmp_path, which))
+        assert meta["executed_tests"] is True
+        assert meta["target"] == "prod" and meta["command"] == f"dbt {which}"
 
 
 def test_load_run_results(tmp_path):

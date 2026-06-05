@@ -13,7 +13,14 @@ enforces the test). `not_null` folds per-column (§4.1); `unique` tracks per-mod
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 
-from dbt_column_lineage.ir import LineageEdge, LineageResult, LineageType, TransformKind
+from dbt_column_lineage.ir import (
+    Confidence,
+    LineageEdge,
+    LineageResult,
+    LineageType,
+    SchemaProvenance,
+    TransformKind,
+)
 
 from dbt_test_lineage.rules import is_injective_chain, not_null_effect
 from dbt_test_lineage.tests_loader import DeclaredGuarantee
@@ -50,6 +57,38 @@ def _model_topo_order(edges: Iterable[LineageEdge]) -> list[str]:
                 ready.append(n)
     order.extend(sorted(models - resolved))  # cycle fallback
     return order
+
+
+def _edge_is_uncertain(edge: LineageEdge) -> bool:
+    """The engine couldn't fully pin this edge down — an UNKNOWN transform step, an unresolved schema,
+    or a warning. A verdict resting on such an edge is lower-confidence."""
+    return (
+        edge.schema_provenance == SchemaProvenance.UNKNOWN
+        or bool(edge.warnings)
+        or any(s.kind == TransformKind.UNKNOWN for s in edge.transforms)
+    )
+
+
+def column_confidence(result: LineageResult) -> dict[_Key, Confidence]:
+    """Per-column confidence in the LINEAGE the verdicts rest on (kind-independent). LOW if any incoming
+    edge is uncertain, or any upstream contributor is already LOW — propagated downstream so uncertainty
+    is inherited. Used to flag findings whose reasoning sits on shaky lineage."""
+    direct = [e for e in result.edges if e.lineage_type == LineageType.DIRECT]
+    by_down: dict[_Key, list[LineageEdge]] = defaultdict(list)
+    for e in direct:
+        by_down[(e.downstream.asset, e.downstream.column)].append(e)
+    conf: dict[_Key, Confidence] = {}
+    cols_by_model: dict[str, list[_Key]] = defaultdict(list)
+    for key in by_down:
+        cols_by_model[key[0]].append(key)
+    for model in _model_topo_order(direct):
+        for key in cols_by_model.get(model, []):
+            low = any(_edge_is_uncertain(e) for e in by_down[key]) or any(
+                conf.get((e.upstream.asset, e.upstream.column), Confidence.HIGH) == Confidence.LOW
+                for e in by_down[key]
+            )
+            conf[key] = Confidence.LOW if low else Confidence.HIGH
+    return conf
 
 
 def _to3(v: Verdict) -> str:

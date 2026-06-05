@@ -15,6 +15,7 @@ from dbt_test_lineage.reports import (
     Report,
     ReportKind,
     analyze,
+    redundant_cost,
     report_to_dict,
 )
 from dbt_test_lineage.tests_loader import DeclaredGuarantee
@@ -95,6 +96,19 @@ def test_consolidation_collapses_redundant_onto_anchor():
     report = analyze(result, guarantees, kinds=(NN,))
     # the redundant test on mid.id collapses onto its upstream anchor root.id
     assert report.consolidations == {f"{ROOT}.id": [f"{MID}.id"]}
+
+
+def test_redundant_cost_prices_removable_tests():
+    result, guarantees = _scenario()
+    report = analyze(result, guarantees, kinds=(NN,))  # mid.id is REDUNDANT
+    test_index = {(MID, "id", NN): ["test.mid"]}
+    timing = {"test.mid": 2.0, "test.other": 1.0, "model.x": 9.0}  # 3.0s total test time
+    cost = redundant_cost(report, test_index, timing, dollars_per_hour=3600)
+    assert cost["removable_tests"] == 1
+    assert cost["redundant_seconds"] == 2.0
+    assert cost["total_test_seconds"] == 3.0  # only test.* nodes
+    assert cost["pct_of_test_time"] == 66.7
+    assert cost["dollars_per_run"] == 2.0  # 2s at $3600/hr = $1/s -> $2
 
 
 def test_report_to_dict_shape():

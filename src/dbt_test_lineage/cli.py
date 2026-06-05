@@ -9,10 +9,19 @@ import typer
 
 from dbt_column_lineage.engine import extract_lineage
 
-from dbt_test_lineage.reports import Finding, Report, ReportKind, analyze, report_to_dict
+from dbt_test_lineage.reports import (
+    Finding,
+    Report,
+    ReportKind,
+    analyze,
+    redundant_cost,
+    report_to_dict,
+)
 from dbt_test_lineage.tests_loader import (
     load_declared_guarantees,
+    load_run_metadata,
     load_run_results,
+    load_run_timing,
     test_uid_index,
     unique_key_guarantees,
 )
@@ -29,12 +38,20 @@ _ASSUME_UK = typer.Option(
 )
 
 
-def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool) -> Report:
-    result = extract_lineage(manifest, catalog)
+def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool, workers: int = 1) -> Report:
+    result = extract_lineage(manifest, catalog, workers=workers)
     guarantees = load_declared_guarantees(manifest)
     if assume_unique_key:
         guarantees += unique_key_guarantees(manifest)
     return analyze(result, guarantees)
+
+
+_WORKERS = typer.Option(
+    1, "--workers", "-j", help="Parallel processes for lineage extraction (the slow step). "
+    "Try the CPU count; models are processed independently.")
+
+
+_PASS = ("pass", "success")  # dbt: tests report "pass"; a `dbt run`/`build` model reports "success"
 
 
 def _status(f: Finding, status_map: dict) -> str:
@@ -43,12 +60,13 @@ def _status(f: Finding, status_map: dict) -> str:
         return ""
     if any(s in ("fail", "error") for s in statuses):
         return " (last run: FAIL — investigate before removing)"
-    if all(s == "pass" for s in statuses):
-        return " (last run: pass — safe to remove)"
+    if all(s in _PASS for s in statuses):
+        return " (last run: passing — safe to remove)"
     return f" (last run: {','.join(sorted(set(statuses)))})"
 
 
-def _render(report: Report, limit: int = 0, status_map: dict | None = None) -> None:
+def _render(report: Report, limit: int = 0, status_map: dict | None = None,
+            cost: dict | None = None) -> None:
     status_map = status_map or {}
     for kind in ReportKind:
         rows = report.of(kind)  # already sorted worst-first by priority
@@ -59,7 +77,10 @@ def _render(report: Report, limit: int = 0, status_map: dict | None = None) -> N
         typer.secho(f"\n{kind.value} ({len(rows)}){suffix}", bold=True)
         for f in shown:
             run = _status(f, status_map) if kind.value.startswith("REDUNDANT") else ""
-            typer.echo(f"  [p{f.priority}] {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}{run}")
+            conf = " ⚠low-confidence" if f.confidence.value == "low" else ""
+            typer.echo(
+                f"  [p{f.priority}]{conf} {f.asset}.{f.column} [{f.guarantee.value}] — {f.reason}{run}"
+            )
             for step in f.path:
                 typer.echo(f"        {step.effect.value}: {step.column} {step.detail}".rstrip())
     if report.coverage:
@@ -81,6 +102,25 @@ def _render(report: Report, limit: int = 0, status_map: dict | None = None) -> N
         typer.secho("\nconsolidation", bold=True)
         typer.echo(f"  {covered_total} redundant tests collapse onto {len(report.consolidations)} "
                    "upstream anchors (test once at the anchor, remove the rest)")
+    if cost:
+        prov = cost.get("provenance", {})
+        typer.secho("\nredundant test cost", bold=True)
+        typer.echo(f"  source: dbt `{prov.get('command') or '?'}`"
+                   f"{f', target={prov['target']}' if prov.get('target') else ''}"
+                   f", generated {prov.get('generated_at')}")
+        if not prov.get("executed_tests"):
+            typer.echo("  (tests were not executed in this run — cost is not meaningful; see warning above)")
+        elif cost.get("total_test_seconds"):
+            line = (f"  {cost['removable_tests']} removable tests took {cost['redundant_seconds']}s "
+                    f"({cost['pct_of_test_time']}% of {cost['total_test_seconds']}s total test time)")
+            if "dollars_per_run" in cost:
+                line += f" ≈ ${cost['dollars_per_run']}/run"
+            typer.echo(line)
+    low_conf = sum(1 for f in report.findings if f.confidence.value == "low")
+    if low_conf:
+        typer.secho("\nconfidence", bold=True)
+        typer.echo(f"  {low_conf} of {len(report.findings)} findings are low-confidence "
+                   "(rest on uncertain lineage — verify before acting)")
     typer.echo(
         f"\nsummary: {len(report.of(ReportKind.REDUNDANT))} redundant (inherited), "
         f"{len(report.of(ReportKind.REDUNDANT_STRUCTURAL))} redundant (structural), "
@@ -109,26 +149,49 @@ def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
            assume_unique_key: bool = _ASSUME_UK,
            run_results: Optional[Path] = typer.Option(
                None, "--run-results",
-               help="dbt run_results.json — annotate redundant tests with last-run status "
-                    "(passing = safe to remove; failing = investigate first)"),
+               help="dbt run_results.json — annotate redundant tests with last-run status and price "
+                    "what they cost per run (passing = safe to remove; failing = investigate first)"),
+           cost_per_hour: float = typer.Option(
+               0.0, "--cost-per-hour",
+               help="Warehouse $/hour — estimate the per-run $ spent on removable redundant tests"),
            limit: int = typer.Option(0, "--limit", "-n",
                                      help="Show only the top-N (highest priority) findings per category"),
+           workers: int = _WORKERS,
            as_json: bool = typer.Option(False, "--json", help="Emit JSON instead of text")) -> None:
     """Advisory report: redundant / missing / contradicted tests, each with its propagation path."""
-    rep = _run(manifest, catalog, assume_unique_key)
+    rep = _run(manifest, catalog, assume_unique_key, workers)
+    status_map = _status_map(manifest, run_results)
+    cost = None
+    if run_results:
+        meta = load_run_metadata(run_results)
+        cost = redundant_cost(rep, test_uid_index(manifest), load_run_timing(run_results), cost_per_hour)
+        cost["provenance"] = meta  # never report a cost without saying where it came from
+        if not meta["executed_tests"]:
+            typer.secho(
+                f"WARNING: run_results.json is from `{meta['command'] or 'a non-test command'}`, which "
+                "does NOT execute tests — the per-test times are compile/catalog times, not real test "
+                "runtimes. The cost below is NOT meaningful; use a `dbt build` / `dbt test` artifact.",
+                fg=typer.colors.RED, bold=True,
+            )
+        elif not status_map:
+            typer.secho("note: no test results matched the manifest's tests.", fg=typer.colors.YELLOW)
     if as_json:
-        typer.echo(json.dumps(report_to_dict(rep), indent=2))
+        out = report_to_dict(rep)
+        if cost is not None:
+            out["redundant_cost"] = cost
+        typer.echo(json.dumps(out, indent=2))
     else:
-        _render(rep, limit, _status_map(manifest, run_results))
+        _render(rep, limit, status_map, cost)
 
 
 @app.command()
 def check(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
           assume_unique_key: bool = _ASSUME_UK,
+          workers: int = _WORKERS,
           strict: bool = typer.Option(False, "--strict",
                                       help="Also fail on MISSING coverage holes")) -> None:
     """CI gate: exit non-zero on provable contradictions (and, with --strict, on missing coverage)."""
-    rep = _run(manifest, catalog, assume_unique_key)
+    rep = _run(manifest, catalog, assume_unique_key, workers)
     _render(rep)
     contradictions = len(rep.of(ReportKind.CONTRADICTION))
     missing = len(rep.of(ReportKind.MISSING))

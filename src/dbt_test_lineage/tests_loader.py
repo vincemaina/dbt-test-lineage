@@ -93,10 +93,40 @@ def test_uid_index(manifest_path: str | Path) -> dict[tuple[str, str, GuaranteeK
 
 
 def load_run_results(path: str | Path) -> dict[str, str]:
-    """`test_unique_id -> status` (pass / fail / error / skipped) from a dbt `run_results.json`."""
+    """`node_unique_id -> status` (pass / success / fail / error / skipped) from a `run_results.json`."""
     data = json.loads(Path(path).read_text())
     return {
         r["unique_id"]: str(r.get("status", "")).lower()
+        for r in data.get("results", [])
+        if "unique_id" in r
+    }
+
+
+def load_run_metadata(path: str | Path) -> dict:
+    """Provenance of a `run_results.json` so a cost/timing reading is never context-free: which dbt
+    command produced it, target, when, and total elapsed. `executed_tests` is True only for commands that
+    actually RUN tests (`build` / `test`) — otherwise any per-test `execution_time` is compile/catalog
+    time, not real test runtime, and must not be priced as such."""
+    d = json.loads(Path(path).read_text())
+    meta, args = d.get("metadata", {}), d.get("args", {})
+    command = args.get("invocation_command") or args.get("which") or ""
+    which = str(args.get("which") or "").lower()
+    return {
+        "command": command,
+        "target": args.get("target"),
+        "generated_at": meta.get("generated_at"),
+        "dbt_version": meta.get("dbt_version"),
+        "elapsed_time": d.get("elapsed_time"),
+        "executed_tests": which in ("build", "test"),
+    }
+
+
+def load_run_timing(path: str | Path) -> dict[str, float]:
+    """`node_unique_id -> execution_time` (wall-clock seconds) from a `run_results.json` — used to price
+    what removable (redundant) tests cost per run."""
+    data = json.loads(Path(path).read_text())
+    return {
+        r["unique_id"]: float(r.get("execution_time") or 0.0)
         for r in data.get("results", [])
         if "unique_id" in r
     }

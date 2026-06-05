@@ -25,9 +25,9 @@ from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from enum import Enum
 
-from dbt_column_lineage.ir import LineageResult, LineageType
+from dbt_column_lineage.ir import Confidence, LineageResult, LineageType
 
-from dbt_test_lineage.propagate import propagate
+from dbt_test_lineage.propagate import column_confidence, propagate
 from dbt_test_lineage.tests_loader import DeclaredGuarantee
 from dbt_test_lineage.verdict import (
     ColumnVerdict,
@@ -58,6 +58,7 @@ class Finding:
     reason: str
     path: tuple[PropagationStep, ...] = field(default_factory=tuple)
     priority: int = 0  # higher = act first: key-ness (is a PK/grain) + downstream blast radius
+    confidence: Confidence = Confidence.HIGH  # LOW if the lineage it rests on is uncertain
 
     def __str__(self) -> str:
         return f"{self.kind.value}: {self.asset}.{self.column} [{self.guarantee.value}] — {self.reason}"
@@ -159,6 +160,8 @@ def analyze(
     def weight(key: tuple) -> int:  # column importance: base + blast radius + key-ness
         return 1 + min(out_degree.get(key, 0), 10) + (10 if key in grain_cols else 0)
 
+    confidence = column_confidence(result)  # per-column lineage certainty (kind-independent)
+
     for kind in kinds:
         verdicts = propagate(result, guarantees, kind)  # seeds from explicit tests AND implied (config)
         explicit = {(g.asset, g.column) for g in guarantees if g.kind == kind and g.source == "test"}
@@ -234,7 +237,14 @@ def analyze(
 
     # priority = blast radius + key-ness (= weight without the base 1). Sorts findings worst-first.
     ranked = sorted(
-        (replace(f, priority=weight((f.asset, f.column)) - 1) for f in findings),
+        (
+            replace(
+                f,
+                priority=weight((f.asset, f.column)) - 1,
+                confidence=confidence.get((f.asset, f.column), Confidence.HIGH),
+            )
+            for f in findings
+        ),
         key=lambda f: -f.priority,
     )
     leverage.sort(key=lambda lv: lv.reach)  # least-leverage tests first
@@ -249,9 +259,35 @@ def finding_to_dict(f: Finding) -> dict:
         "guarantee": f.guarantee.value,
         "verdict": f.verdict.value,
         "priority": f.priority,
+        "confidence": f.confidence.value,
         "reason": f.reason,
         "path": [{"column": s.column, "effect": s.effect.value, "detail": s.detail} for s in f.path],
     }
+
+
+def redundant_cost(
+    report: Report,
+    test_index: dict,
+    timing: dict[str, float],
+    dollars_per_hour: float = 0.0,
+) -> dict:
+    """Price the removable (REDUNDANT + REDUNDANT_STRUCTURAL) tests using per-test `execution_time` from
+    run_results: seconds spent on tests we could drop, as a share of total test time, optionally in $."""
+    removable_uids: set = set()
+    for f in report.findings:
+        if f.kind in (ReportKind.REDUNDANT, ReportKind.REDUNDANT_STRUCTURAL):
+            removable_uids.update(test_index.get((f.asset, f.column, f.guarantee), ()))
+    redundant_secs = sum(timing.get(u, 0.0) for u in removable_uids)
+    total_test_secs = sum(t for u, t in timing.items() if u.startswith("test."))
+    out = {
+        "removable_tests": len(removable_uids),
+        "redundant_seconds": round(redundant_secs, 3),
+        "total_test_seconds": round(total_test_secs, 3),
+        "pct_of_test_time": round(100 * redundant_secs / total_test_secs, 1) if total_test_secs else 0.0,
+    }
+    if dollars_per_hour:
+        out["dollars_per_run"] = round(redundant_secs / 3600 * dollars_per_hour, 4)
+    return out
 
 
 def report_to_dict(report: Report) -> dict:

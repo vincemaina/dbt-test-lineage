@@ -78,6 +78,22 @@ implied guarantees. 72 tests, lint clean.
 capped). Findings sorted worst-first; CLI `report --limit N` shows the top-N per category and prints the
 `[pN]` score. Makes a long MISSING list (248 with `--assume-unique-key`) actionable top-down. 73 tests.
 
+## Phase 4.6 — Accuracy validation & confidence  ✅ done
+
+The tool's value is trust, so before more breadth: **confidence** + an **accuracy gate**.
+- `propagate.column_confidence` — per-column lineage certainty (LOW if an incoming edge has an UNKNOWN
+  transform / unresolved schema / engine warning, propagated downstream). Every `Finding` carries
+  `confidence`; the CLI flags low-confidence findings (⚠) and counts them ("rest on uncertain lineage —
+  verify before acting"). Lets users act on the high-confidence findings and scrutinise the rest.
+- `tests/eval_harness.py` + `test_eval.py` — hand-verified cases run end-to-end through the **real
+  engine** + `analyze`, scored against expected/forbidden findings. Caught a real bug in the author's own
+  expectation (anchor-side of a LEFT JOIN is not null-introduced). The reproducible accuracy gate.
+
+**Next (user-noted, deferred):** **diff / regression mode** (PR-time: a change broke a guarantee N
+downstream tests rely on — the CI adoption path) and **`accepted_values` / `relationships` propagation**
+(extend the lattice to the other two generic tests). Then exposure-aware prioritization, chokepoint
+consolidation.
+
 ## Phase 5 — Breadth & ergonomics  ◻
 
 `accepted_values` + `relationships` propagation (the lattice generalizes), multi-column `unique`,
@@ -106,6 +122,12 @@ our testing is." Roughly ordered by value/effort; all build on the existing verd
 - **✅ `run_results.json` correlation — DONE.** `--run-results`: redundant tests annotated with last-run
   status (passing = safe to remove; failing = investigate). `tests_loader.test_uid_index` +
   `load_run_results`.
+- **✅ Redundant-test cost — DONE.** `reports.redundant_cost` prices removable tests from run_results
+  `execution_time` (`load_run_timing`): seconds spent on droppable tests, % of total test time, and `$`
+  per run via `--cost-per-hour` (warehouse rate). **Provenance guardrail** (`load_run_metadata`): every
+  cost is labelled with the dbt command/target/timestamp, and a loud warning replaces the number when the
+  artifact is from a non-test command (`dbt docs generate`/`compile`/`run`) — those per-test times are
+  compile/catalog time, not real test runtime. Refuses to mislead rather than print a meaningless figure.
 - **Exposure-aware prioritization** — dbt `exposures` mark columns the business consumes (dashboards,
   ML). Prioritize gaps on lineage paths that reach an exposure. *(Still future.)*
 - **`accepted_values` / `relationships` propagation** — extend the lattice to the other two generic
