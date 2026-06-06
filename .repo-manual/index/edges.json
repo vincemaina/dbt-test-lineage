@@ -1,0 +1,508 @@
+{
+  "edges": [
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cache.py::extract_lineage_cached",
+      "dst": "src/dbt_test_lineage/cache.py::_cache_key",
+      "dst_name": "_cache_key",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_render",
+      "dst": "src/dbt_test_lineage/cli.py::_status",
+      "dst_name": "_status",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_run",
+      "dst": "src/dbt_test_lineage/cache.py::extract_lineage_cached",
+      "dst_name": "extract_lineage_cached",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_run",
+      "dst": "src/dbt_test_lineage/reports.py::analyze",
+      "dst_name": "analyze",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_run",
+      "dst": "src/dbt_test_lineage/tests_loader.py::load_declared_guarantees",
+      "dst_name": "load_declared_guarantees",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_run",
+      "dst": "src/dbt_test_lineage/tests_loader.py::unique_key_guarantees",
+      "dst_name": "unique_key_guarantees",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_status_map",
+      "dst": "src/dbt_test_lineage/tests_loader.py::load_run_results",
+      "dst_name": "load_run_results",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::_status_map",
+      "dst": "src/dbt_test_lineage/tests_loader.py::test_uid_index",
+      "dst_name": "test_uid_index",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::check",
+      "dst": "src/dbt_test_lineage/cli.py::_render",
+      "dst_name": "_render",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::check",
+      "dst": "src/dbt_test_lineage/cli.py::_run",
+      "dst_name": "_run",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/cli.py::_render",
+      "dst_name": "_render",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/cli.py::_run",
+      "dst_name": "_run",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/cli.py::_status_map",
+      "dst_name": "_status_map",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/reports.py::redundant_cost",
+      "dst_name": "redundant_cost",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/reports.py::report_to_dict",
+      "dst_name": "report_to_dict",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/tests_loader.py::load_run_metadata",
+      "dst_name": "load_run_metadata",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/tests_loader.py::load_run_timing",
+      "dst_name": "load_run_timing",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/cli.py::report",
+      "dst": "src/dbt_test_lineage/tests_loader.py::test_uid_index",
+      "dst_name": "test_uid_index",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_group",
+      "dst": "src/dbt_test_lineage/propagate.py::_and",
+      "dst_name": "_and",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_group",
+      "dst": "src/dbt_test_lineage/propagate.py::_has_kind",
+      "dst_name": "_has_kind",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_group",
+      "dst": "src/dbt_test_lineage/propagate.py::_or",
+      "dst_name": "_or",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_and",
+      "dst_name": "_and",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_combine_group",
+      "dst_name": "_combine_group",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_fold_not_null",
+      "dst_name": "_fold_not_null",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_combine_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_union_branch",
+      "dst_name": "_union_branch",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_fold_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_from3",
+      "dst_name": "_from3",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_fold_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_step_detail",
+      "dst_name": "_step_detail",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_fold_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_to3",
+      "dst_name": "_to3",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_fold_not_null",
+      "dst": "src/dbt_test_lineage/rules.py::not_null_effect",
+      "dst_name": "not_null_effect",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_fold_not_null",
+      "dst": "src/dbt_test_lineage/verdict.py::PropagationStep",
+      "dst_name": "PropagationStep",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_combine_not_null",
+      "dst_name": "_combine_not_null",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_not_null",
+      "dst": "src/dbt_test_lineage/propagate.py::_model_topo_order",
+      "dst_name": "_model_topo_order",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_not_null",
+      "dst": "src/dbt_test_lineage/verdict.py::ColumnVerdict",
+      "dst_name": "ColumnVerdict",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_not_null",
+      "dst": "src/dbt_test_lineage/verdict.py::PropagationStep",
+      "dst_name": "PropagationStep",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_unique",
+      "dst": "src/dbt_test_lineage/propagate.py::_model_topo_order",
+      "dst_name": "_model_topo_order",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_unique",
+      "dst": "src/dbt_test_lineage/rules.py::is_injective_chain",
+      "dst_name": "is_injective_chain",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_unique",
+      "dst": "src/dbt_test_lineage/verdict.py::ColumnVerdict",
+      "dst_name": "ColumnVerdict",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::_propagate_unique",
+      "dst": "src/dbt_test_lineage/verdict.py::PropagationStep",
+      "dst_name": "PropagationStep",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::column_confidence",
+      "dst": "src/dbt_test_lineage/propagate.py::_edge_is_uncertain",
+      "dst_name": "_edge_is_uncertain",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::column_confidence",
+      "dst": "src/dbt_test_lineage/propagate.py::_model_topo_order",
+      "dst_name": "_model_topo_order",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::propagate",
+      "dst": "src/dbt_test_lineage/propagate.py::_propagate_not_null",
+      "dst_name": "_propagate_not_null",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/propagate.py::propagate",
+      "dst": "src/dbt_test_lineage/propagate.py::_propagate_unique",
+      "dst_name": "_propagate_unique",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::_held",
+      "dst": "src/dbt_test_lineage/reports.py::_parse_col",
+      "dst_name": "_parse_col",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/propagate.py::column_confidence",
+      "dst_name": "column_confidence",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/propagate.py::propagate",
+      "dst_name": "propagate",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/reports.py::Finding",
+      "dst_name": "Finding",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/reports.py::Report",
+      "dst_name": "Report",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/reports.py::TestLeverage",
+      "dst_name": "TestLeverage",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/reports.py::_anchor",
+      "dst_name": "_anchor",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/reports.py::_held",
+      "dst_name": "_held",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::analyze",
+      "dst": "src/dbt_test_lineage/reports.py::_reach",
+      "dst_name": "_reach",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/reports.py::report_to_dict",
+      "dst": "src/dbt_test_lineage/reports.py::finding_to_dict",
+      "dst_name": "finding_to_dict",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/rules.py::_coalesce_has_nonnull_default",
+      "dst": "src/dbt_test_lineage/rules.py::_is_nonnull_literal",
+      "dst_name": "_is_nonnull_literal",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/rules.py::not_null_effect",
+      "dst": "src/dbt_test_lineage/rules.py::_coalesce_has_nonnull_default",
+      "dst_name": "_coalesce_has_nonnull_default",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::load_declared_guarantees",
+      "dst": "src/dbt_test_lineage/tests_loader.py::load_test_inventory",
+      "dst_name": "load_test_inventory",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::load_test_inventory",
+      "dst": "src/dbt_test_lineage/tests_loader.py::DeclaredGuarantee",
+      "dst_name": "DeclaredGuarantee",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::load_test_inventory",
+      "dst": "src/dbt_test_lineage/tests_loader.py::TestInventory",
+      "dst_name": "TestInventory",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::load_test_inventory",
+      "dst": "src/dbt_test_lineage/tests_loader.py::_attached_model",
+      "dst_name": "_attached_model",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::test_uid_index",
+      "dst": "src/dbt_test_lineage/tests_loader.py::_attached_model",
+      "dst_name": "_attached_model",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::unique_key_guarantees",
+      "dst": "src/dbt_test_lineage/tests_loader.py::DeclaredGuarantee",
+      "dst_name": "DeclaredGuarantee",
+      "resolved": true
+    },
+    {
+      "kind": "calls",
+      "src": "src/dbt_test_lineage/tests_loader.py::unique_key_guarantees",
+      "dst": "src/dbt_test_lineage/tests_loader.py::_key_columns",
+      "dst_name": "_key_columns",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/cli.py",
+      "dst": "src/dbt_test_lineage/cache.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/cli.py",
+      "dst": "src/dbt_test_lineage/reports.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/cli.py",
+      "dst": "src/dbt_test_lineage/tests_loader.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/propagate.py",
+      "dst": "src/dbt_test_lineage/rules.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/propagate.py",
+      "dst": "src/dbt_test_lineage/tests_loader.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/propagate.py",
+      "dst": "src/dbt_test_lineage/verdict.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/reports.py",
+      "dst": "src/dbt_test_lineage/propagate.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/reports.py",
+      "dst": "src/dbt_test_lineage/tests_loader.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/reports.py",
+      "dst": "src/dbt_test_lineage/verdict.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/rules.py",
+      "dst": "src/dbt_test_lineage/verdict.py",
+      "dst_name": "",
+      "resolved": true
+    },
+    {
+      "kind": "imports",
+      "src": "src/dbt_test_lineage/tests_loader.py",
+      "dst": "src/dbt_test_lineage/verdict.py",
+      "dst_name": "",
+      "resolved": true
+    }
+  ]
+}

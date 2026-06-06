@@ -1,0 +1,21 @@
+{
+  "language": "python",
+  "source_dirs": [
+    "src"
+  ],
+  "output_dir": ".repo-manual",
+  "excludes": [
+    ".venv",
+    "venv",
+    ".git",
+    "__pycache__",
+    ".repo-manual",
+    "node_modules",
+    "build",
+    "dist",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache"
+  ],
+  "include_tests": false
+}

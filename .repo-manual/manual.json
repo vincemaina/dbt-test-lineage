@@ -1,0 +1,196 @@
+{
+  "sections": [
+    {
+      "slug": "overview",
+      "title": "Overview",
+      "page_ids": [
+        "overview"
+      ]
+    },
+    {
+      "slug": "dbt_test_lineage",
+      "title": "dbt_test_lineage",
+      "page_ids": [
+        "dbt_test_lineage.cli",
+        "dbt_test_lineage.tests_loader",
+        "dbt_test_lineage.verdict",
+        "dbt_test_lineage.cache",
+        "dbt_test_lineage.propagate",
+        "dbt_test_lineage.reports",
+        "dbt_test_lineage.rules",
+        "dbt_test_lineage"
+      ]
+    }
+  ],
+  "pages": {
+    "overview": {
+      "id": "overview",
+      "title": "Overview — start here",
+      "section": "overview",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/cli.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [],
+      "importance": "high",
+      "description": "What this repo is, the mental model, and how the systems connect.",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.cli": {
+      "id": "dbt_test_lineage.cli",
+      "title": "dbt_test_lineage.cli",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/cli.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [
+        "dbt_test_lineage.cache",
+        "dbt_test_lineage.reports",
+        "dbt_test_lineage.tests_loader"
+      ],
+      "importance": "high",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.tests_loader": {
+      "id": "dbt_test_lineage.tests_loader",
+      "title": "dbt_test_lineage.tests_loader",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/tests_loader.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [
+        "dbt_test_lineage.verdict"
+      ],
+      "importance": "high",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.verdict": {
+      "id": "dbt_test_lineage.verdict",
+      "title": "dbt_test_lineage.verdict",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/verdict.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [],
+      "importance": "high",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.cache": {
+      "id": "dbt_test_lineage.cache",
+      "title": "dbt_test_lineage.cache",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/cache.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [],
+      "importance": "medium",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.propagate": {
+      "id": "dbt_test_lineage.propagate",
+      "title": "dbt_test_lineage.propagate",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/propagate.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [
+        "dbt_test_lineage.rules",
+        "dbt_test_lineage.tests_loader",
+        "dbt_test_lineage.verdict"
+      ],
+      "importance": "medium",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.reports": {
+      "id": "dbt_test_lineage.reports",
+      "title": "dbt_test_lineage.reports",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/reports.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [
+        "dbt_test_lineage.propagate",
+        "dbt_test_lineage.tests_loader",
+        "dbt_test_lineage.verdict"
+      ],
+      "importance": "medium",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage.rules": {
+      "id": "dbt_test_lineage.rules",
+      "title": "dbt_test_lineage.rules",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/rules.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [
+        "dbt_test_lineage.verdict"
+      ],
+      "importance": "medium",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    },
+    "dbt_test_lineage": {
+      "id": "dbt_test_lineage",
+      "title": "dbt_test_lineage",
+      "section": "dbt_test_lineage",
+      "relevant_files": [
+        {
+          "path": "src/dbt_test_lineage/__init__.py",
+          "hash": ""
+        }
+      ],
+      "related_pages": [],
+      "importance": "low",
+      "description": "",
+      "source": "skeleton",
+      "status": "todo",
+      "generated_at": null
+    }
+  }
+}
