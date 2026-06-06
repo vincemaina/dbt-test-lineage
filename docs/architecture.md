@@ -166,7 +166,10 @@ excludes the column's own test). The two headline reports are sound and actionab
 - **MISSING** (advisory): a column is **untested** and `NOT_GUARANTEED` **and the transform that broke
   it acted on an upstream column that held the guarantee** — i.e. a guarantee existed upstream and a
   transform dropped it without a re-test. A real, targeted coverage hole (kept narrow to stay
-  high-signal; the broad "never covered" set is UNCOVERED, below).
+  high-signal; the broad "never covered" set is UNCOVERED, below). *Note:* for `unique`, a MISSING from
+  `operations.may_multiply_rows` is **conservative** — "a join/union/flatten is present, so this key
+  *may* duplicate", not a claim it does (cardinality is data-dependent). Read those as "verify the join
+  cardinality", not "definitely broken".
 - **UNCOVERED** (advisory): a **single-column-grain** column — a model's natural primary key — with **no
   guarantee anywhere in its lineage** (untested, not structurally guaranteed, nothing upstream held it).
   Scoped to *single-column* grains (`len(operations.grain) == 1`) deliberately: every grain column would

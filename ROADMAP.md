@@ -88,6 +88,12 @@ The tool's value is trust, so before more breadth: **confidence** + an **accurac
 - `tests/eval_harness.py` + `test_eval.py` — hand-verified cases run end-to-end through the **real
   engine** + `analyze`, scored against expected/forbidden findings. Caught a real bug in the author's own
   expectation (anchor-side of a LEFT JOIN is not null-introduced). The reproducible accuracy gate.
+- **Real-repo precision audit (2026-06-06):** hand-verified a stratified sample of findings against the
+  actual compiled SQL. REDUNDANT 4/4 correct (incl. a tricky `UNION`-with-nullable-`||` case the engine
+  resolved correctly by tracing value-lineage, not the incremental filter); UNCOVERED correct (real
+  untested grain PKs); MISSING sound as advisory. **No false positives in the sample**; REDUNDANT (the
+  high-stakes category) is solid + 100% high-confidence. Caveat documented: MISSING-via-`may_multiply_rows`
+  is conservative ("a join *may* duplicate this key") — read as "verify the join cardinality", not "broken".
 
 **Next (user-noted, deferred):** **diff / regression mode** (PR-time: a change broke a guarantee N
 downstream tests rely on — the CI adoption path) and **`accepted_values` / `relationships` propagation**

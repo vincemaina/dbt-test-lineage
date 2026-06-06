@@ -4,15 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Design phase — settled approach, no application code yet.** The design is agreed; implementation
-starts at Phase 0. Read these first:
+**Working MVP+ (Phases 0–4 done, plus prioritization, confidence, accuracy eval, caching).** not_null +
+unique propagation; reports REDUNDANT (inherited + structural) / MISSING / UNCOVERED / CONTRADICTION;
+coverage (raw + weighted); test leverage; consolidation; redundant-test cost (with provenance guardrail);
+opt-in `unique_key` source; per-finding confidence; `report`/`check` CLI with `--cache`. ~89 tests, lint
+clean. Read these first:
 
+- [`README.md`](README.md) — what it does + quick start.
 - [`docs/architecture.md`](docs/architecture.md) — **source of truth**: locked decisions, the
   guarantee-propagation model, per-transform rule tables, outputs, non-goals, stack.
-- [`ROADMAP.md`](ROADMAP.md) — phased plan (scaffolding → loader → not_null → unique → reports/CLI).
+- [`ROADMAP.md`](ROADMAP.md) — phased plan + status; what's next (diff/regression mode,
+  accepted_values/relationships).
 
-Contents: `pyproject.toml` (package metadata, py≥3.12; deps added in Phase 0). Tooling chosen but not
-scaffolded: **Python 3.12 · `uv` · `pytest` · `Typer` · `ruff` (line-length 100)**, `src/` layout.
+Stack: **Python 3.12 · `uv` · `pytest` · `Typer` · `ruff` (line-length 100)**, `src/` layout, editable
+path dependency on the sibling `dbt-column-lineage` engine.
 
 ## What this project is
 
