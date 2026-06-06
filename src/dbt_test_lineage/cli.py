@@ -7,8 +7,7 @@ from typing import Optional
 
 import typer
 
-from dbt_column_lineage.engine import extract_lineage
-
+from dbt_test_lineage.cache import extract_lineage_cached
 from dbt_test_lineage.reports import (
     Finding,
     Report,
@@ -38,17 +37,23 @@ _ASSUME_UK = typer.Option(
 )
 
 
-def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool, workers: int = 1) -> Report:
-    result = extract_lineage(manifest, catalog, workers=workers)
+def _run(manifest: Path, catalog: Optional[Path], assume_unique_key: bool,
+         cache: Optional[Path] = None) -> Report:
+    result, from_cache = extract_lineage_cached(manifest, catalog, cache=cache)
+    if cache is not None:
+        typer.secho(
+            "loaded lineage from cache" if from_cache else f"extracted lineage (cached to {cache})",
+            fg=typer.colors.BLUE,
+        )
     guarantees = load_declared_guarantees(manifest)
     if assume_unique_key:
         guarantees += unique_key_guarantees(manifest)
     return analyze(result, guarantees)
 
 
-_WORKERS = typer.Option(
-    1, "--workers", "-j", help="Parallel processes for lineage extraction (the slow step). "
-    "Try the CPU count; models are processed independently.")
+_CACHE = typer.Option(
+    None, "--cache", help="Cache the extracted lineage at this path and reuse it while the manifest/"
+    "catalog are unchanged — skips re-extraction when only iterating on the report.")
 
 
 _PASS = ("pass", "success")  # dbt: tests report "pass"; a `dbt run`/`build` model reports "success"
@@ -156,10 +161,10 @@ def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
                help="Warehouse $/hour — estimate the per-run $ spent on removable redundant tests"),
            limit: int = typer.Option(0, "--limit", "-n",
                                      help="Show only the top-N (highest priority) findings per category"),
-           workers: int = _WORKERS,
+           cache: Optional[Path] = _CACHE,
            as_json: bool = typer.Option(False, "--json", help="Emit JSON instead of text")) -> None:
     """Advisory report: redundant / missing / contradicted tests, each with its propagation path."""
-    rep = _run(manifest, catalog, assume_unique_key, workers)
+    rep = _run(manifest, catalog, assume_unique_key, cache)
     status_map = _status_map(manifest, run_results)
     cost = None
     if run_results:
@@ -187,11 +192,11 @@ def report(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
 @app.command()
 def check(manifest: Path = _MANIFEST, catalog: Optional[Path] = _CATALOG,
           assume_unique_key: bool = _ASSUME_UK,
-          workers: int = _WORKERS,
+          cache: Optional[Path] = _CACHE,
           strict: bool = typer.Option(False, "--strict",
                                       help="Also fail on MISSING coverage holes")) -> None:
     """CI gate: exit non-zero on provable contradictions (and, with --strict, on missing coverage)."""
-    rep = _run(manifest, catalog, assume_unique_key, workers)
+    rep = _run(manifest, catalog, assume_unique_key, cache)
     _render(rep)
     contradictions = len(rep.of(ReportKind.CONTRADICTION))
     missing = len(rep.of(ReportKind.MISSING))

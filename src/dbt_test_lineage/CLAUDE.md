@@ -6,6 +6,9 @@ propagates `not_null` / `unique` guarantees to verdicts. See [`../../docs/archit
 ## Modules
 
 - `__init__.py` — package marker; exposes `__version__`.
+- `cache.py` — `extract_lineage_cached(...) -> (LineageResult, from_cache)`: pickles the engine result
+  keyed on a hash of manifest+catalog contents + params + engine version; reuses it while inputs are
+  unchanged, rebuilds on change. Skips the ~minutes-long extraction when only iterating on the report.
 - `verdict.py` — the guarantee model: `GuaranteeKind` (not_null/unique), the `Verdict` lattice
   (`PROVEN`/`ESTABLISHED`/`VIOLATED`/`UNKNOWN`, with `.holds`), `Effect`, and the explainable
   `ColumnVerdict` IR (carries the ordered `PropagationStep` path) + `verdict_to_dict`.
@@ -39,7 +42,7 @@ propagates `not_null` / `unique` guarantees to verdicts. See [`../../docs/archit
   `report_to_dict`.
 - `cli.py` — Typer CLI: `report` (text/`--json`; `--assume-unique-key`; `--run-results` annotates
   redundant tests with last-run status AND prices them; `--cost-per-hour` for $/run; `--limit N` top-N;
-  `--workers/-j N` parallel lineage extraction) and `check` (CI gate; exits 1 on contradictions,
+  `--cache PATH` reuse lineage across runs) and `check` (CI gate; exits 1 on contradictions,
   `--strict` also on missing). Renders coverage (raw+weighted), leverage, consolidation, redundant-test
-  cost, low-confidence count. (Engine `extract_column_lineage` is ~96% of runtime → `--workers` is the
-  speed lever.)
+  cost, low-confidence count. (Engine `extract_column_lineage` is ~96% of runtime → `--cache` makes
+  iterating on the report instant.)

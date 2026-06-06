@@ -94,6 +94,19 @@ downstream tests rely on — the CI adoption path) and **`accepted_values` / `re
 (extend the lattice to the other two generic tests). Then exposure-aware prioritization, chokepoint
 consolidation.
 
+## Phase 4.7 — Performance  ✅ done
+
+Profiled: the engine's `extract_column_lineage` (sqlglot `lineage()`) is ~96% of runtime (~417ms/model
+× 729 ≈ 5 min, dominated by a few very wide models); propagation/reports are seconds. The fix:
+- **Lineage cache** (`cache.extract_lineage_cached` + CLI `--cache PATH`): pickle the `LineageResult`
+  keyed on manifest/catalog contents + params + engine version; reused while inputs are unchanged →
+  iterating on the report (different `--assume-unique-key`/`--run-results`/etc.) skips re-extraction
+  entirely. The right fix since audits re-*analyze*, not re-*extract*.
+
+(Cross-model parallelism was prototyped — correct but only ~1.3–1.7× on this repo because a handful of
+wide models dominate the wall-clock, and unstable at higher worker counts in constrained envs — so it
+was removed to keep the engine lean. The good part, a pure per-model `_process_uid`, was kept.)
+
 ## Phase 5 — Breadth & ergonomics  ◻
 
 `accepted_values` + `relationships` propagation (the lattice generalizes), multi-column `unique`,
