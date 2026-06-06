@@ -17,6 +17,10 @@ dbt-test-lineage = "dbt_test_lineage.cli:app"
 [tool.hatch.build.targets.wheel]
 packages = ["src/dbt_test_lineage"]
 
+[tool.uv]
+# sync dev + docs by default so `uv run mkdocs serve/build` always has mkdocs + plugins available
+default-groups = ["dev", "docs"]
+
 # Consume the sibling lineage engine as an editable path dependency (see docs/architecture.md §2).
 [tool.uv.sources]
 dbt-column-lineage = { path = "../dbt-column-lineage", editable = true }
