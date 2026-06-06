@@ -1,0 +1,47 @@
+{
+  "overview": {
+    "description": "Are our not_null / unique tests doing anything, and where are we missing some? This tool answers that for a dbt project — statically, without touching the warehouse — by propagating each test's guarantee through the column lineage."
+  },
+  "systems": [
+    {
+      "id": "guarantee-model",
+      "title": "① Guarantee Model",
+      "importance": "high",
+      "description": "The shared vocabulary — what a guarantee, a verdict, and a finding's evidence ARE. Tiny but load-bearing: every other system speaks this language.",
+      "files": ["src/dbt_test_lineage/verdict.py"],
+      "related": ["propagation-core", "reporting"]
+    },
+    {
+      "id": "inputs",
+      "title": "② Inputs",
+      "importance": "medium",
+      "description": "Where the facts come from: the column lineage (via a cache over the upstream engine) and the declared dbt tests parsed from the manifest.",
+      "files": ["src/dbt_test_lineage/cache.py", "src/dbt_test_lineage/tests_loader.py"],
+      "related": ["propagation-core"]
+    },
+    {
+      "id": "propagation-core",
+      "title": "③ Propagation Core",
+      "importance": "high",
+      "description": "The brain: push each declared guarantee through the lineage's transforms to a per-column verdict, soundly. The hardest, highest-value code in the repo.",
+      "files": ["src/dbt_test_lineage/propagate.py", "src/dbt_test_lineage/rules.py"],
+      "related": ["guarantee-model", "reporting"]
+    },
+    {
+      "id": "reporting",
+      "title": "④ Reporting",
+      "importance": "high",
+      "description": "Turn verdicts + declared tests into actionable findings (REDUNDANT / MISSING / UNCOVERED / CONTRADICTION) plus coverage, leverage, consolidation, and cost.",
+      "files": ["src/dbt_test_lineage/reports.py"],
+      "related": ["propagation-core", "cli"]
+    },
+    {
+      "id": "cli",
+      "title": "⑤ CLI",
+      "importance": "medium",
+      "description": "The two commands a person runs: `report` (read it) and `check` (CI gate). Wires Inputs → Propagation Core → Reporting together.",
+      "files": ["src/dbt_test_lineage/cli.py"],
+      "related": ["reporting", "inputs"]
+    }
+  ]
+}

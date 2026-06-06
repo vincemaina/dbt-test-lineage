@@ -8,17 +8,15 @@
       ]
     },
     {
-      "slug": "dbt_test_lineage",
-      "title": "dbt_test_lineage",
+      "slug": "systems",
+      "title": "Systems",
       "page_ids": [
-        "dbt_test_lineage.cli",
-        "dbt_test_lineage.tests_loader",
-        "dbt_test_lineage.verdict",
-        "dbt_test_lineage.cache",
-        "dbt_test_lineage.propagate",
-        "dbt_test_lineage.reports",
-        "dbt_test_lineage.rules",
-        "dbt_test_lineage"
+        "guarantee-model",
+        "inputs",
+        "propagation-core",
+        "reporting",
+        "cli",
+        "ungrouped"
       ]
     }
   ],
@@ -30,167 +28,139 @@
       "relevant_files": [
         {
           "path": "src/dbt_test_lineage/cli.py",
-          "hash": ""
+          "hash": "sha256:69467d196dda7058d8511cd54b6b17c08754ee6e1cb741ca1f901d13e11cf75a"
         }
       ],
       "related_pages": [],
       "importance": "high",
-      "description": "What this repo is, the mental model, and how the systems connect.",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "description": "Are our not_null / unique tests doing anything, and where are we missing some? This tool answers that for a dbt project — statically, without touching the warehouse — by propagating each test's guarantee through the column lineage.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     },
-    "dbt_test_lineage.cli": {
-      "id": "dbt_test_lineage.cli",
-      "title": "dbt_test_lineage.cli",
-      "section": "dbt_test_lineage",
-      "relevant_files": [
-        {
-          "path": "src/dbt_test_lineage/cli.py",
-          "hash": ""
-        }
-      ],
-      "related_pages": [
-        "dbt_test_lineage.cache",
-        "dbt_test_lineage.reports",
-        "dbt_test_lineage.tests_loader"
-      ],
-      "importance": "high",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
-    },
-    "dbt_test_lineage.tests_loader": {
-      "id": "dbt_test_lineage.tests_loader",
-      "title": "dbt_test_lineage.tests_loader",
-      "section": "dbt_test_lineage",
-      "relevant_files": [
-        {
-          "path": "src/dbt_test_lineage/tests_loader.py",
-          "hash": ""
-        }
-      ],
-      "related_pages": [
-        "dbt_test_lineage.verdict"
-      ],
-      "importance": "high",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
-    },
-    "dbt_test_lineage.verdict": {
-      "id": "dbt_test_lineage.verdict",
-      "title": "dbt_test_lineage.verdict",
-      "section": "dbt_test_lineage",
+    "guarantee-model": {
+      "id": "guarantee-model",
+      "title": "① Guarantee Model",
+      "section": "systems",
       "relevant_files": [
         {
           "path": "src/dbt_test_lineage/verdict.py",
-          "hash": ""
+          "hash": "sha256:17efbb3386257e4af940eb4e013d04f4c16d1af8204440052a339a1e6e0131da"
         }
       ],
-      "related_pages": [],
+      "related_pages": [
+        "propagation-core",
+        "reporting"
+      ],
       "importance": "high",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "description": "The shared vocabulary — what a guarantee, a verdict, and a finding's evidence ARE. Tiny but load-bearing: every other system speaks this language.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     },
-    "dbt_test_lineage.cache": {
-      "id": "dbt_test_lineage.cache",
-      "title": "dbt_test_lineage.cache",
-      "section": "dbt_test_lineage",
+    "inputs": {
+      "id": "inputs",
+      "title": "② Inputs",
+      "section": "systems",
       "relevant_files": [
         {
           "path": "src/dbt_test_lineage/cache.py",
-          "hash": ""
+          "hash": "sha256:a9147901652c172bb886501a6c9e5649fcec8edf57a023f86b8e963720956766"
+        },
+        {
+          "path": "src/dbt_test_lineage/tests_loader.py",
+          "hash": "sha256:a501299da63b7bb90f6064570b6aaff4f483578fc72a466017b40c38d231cbad"
         }
       ],
-      "related_pages": [],
+      "related_pages": [
+        "propagation-core"
+      ],
       "importance": "medium",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "description": "Where the facts come from: the column lineage (via a cache over the upstream engine) and the declared dbt tests parsed from the manifest.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     },
-    "dbt_test_lineage.propagate": {
-      "id": "dbt_test_lineage.propagate",
-      "title": "dbt_test_lineage.propagate",
-      "section": "dbt_test_lineage",
+    "propagation-core": {
+      "id": "propagation-core",
+      "title": "③ Propagation Core",
+      "section": "systems",
       "relevant_files": [
         {
           "path": "src/dbt_test_lineage/propagate.py",
-          "hash": ""
+          "hash": "sha256:ac0e70dc85ce18f7e1bccf1ddbb5dd1f114a05b915b52f047c6da32ea159656c"
+        },
+        {
+          "path": "src/dbt_test_lineage/rules.py",
+          "hash": "sha256:82d670bb849e38cc3f15507c1b55e50e9064ddc8bffd0d5393d817b231132a3d"
         }
       ],
       "related_pages": [
-        "dbt_test_lineage.rules",
-        "dbt_test_lineage.tests_loader",
-        "dbt_test_lineage.verdict"
+        "guarantee-model",
+        "reporting"
       ],
-      "importance": "medium",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "importance": "high",
+      "description": "The brain: push each declared guarantee through the lineage's transforms to a per-column verdict, soundly. The hardest, highest-value code in the repo.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     },
-    "dbt_test_lineage.reports": {
-      "id": "dbt_test_lineage.reports",
-      "title": "dbt_test_lineage.reports",
-      "section": "dbt_test_lineage",
+    "reporting": {
+      "id": "reporting",
+      "title": "④ Reporting",
+      "section": "systems",
       "relevant_files": [
         {
           "path": "src/dbt_test_lineage/reports.py",
-          "hash": ""
+          "hash": "sha256:c5249ed94c3ec7b87b7bfc98a629db63b1f8c14412e1ef48ff8069b37b540393"
         }
       ],
       "related_pages": [
-        "dbt_test_lineage.propagate",
-        "dbt_test_lineage.tests_loader",
-        "dbt_test_lineage.verdict"
+        "propagation-core",
+        "cli"
       ],
-      "importance": "medium",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "importance": "high",
+      "description": "Turn verdicts + declared tests into actionable findings (REDUNDANT / MISSING / UNCOVERED / CONTRADICTION) plus coverage, leverage, consolidation, and cost.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     },
-    "dbt_test_lineage.rules": {
-      "id": "dbt_test_lineage.rules",
-      "title": "dbt_test_lineage.rules",
-      "section": "dbt_test_lineage",
+    "cli": {
+      "id": "cli",
+      "title": "⑤ CLI",
+      "section": "systems",
       "relevant_files": [
         {
-          "path": "src/dbt_test_lineage/rules.py",
-          "hash": ""
+          "path": "src/dbt_test_lineage/cli.py",
+          "hash": "sha256:69467d196dda7058d8511cd54b6b17c08754ee6e1cb741ca1f901d13e11cf75a"
         }
       ],
       "related_pages": [
-        "dbt_test_lineage.verdict"
+        "reporting",
+        "inputs"
       ],
       "importance": "medium",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "description": "The two commands a person runs: `report` (read it) and `check` (CI gate). Wires Inputs → Propagation Core → Reporting together.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     },
-    "dbt_test_lineage": {
-      "id": "dbt_test_lineage",
-      "title": "dbt_test_lineage",
-      "section": "dbt_test_lineage",
+    "ungrouped": {
+      "id": "ungrouped",
+      "title": "Ungrouped",
+      "section": "systems",
       "relevant_files": [
         {
           "path": "src/dbt_test_lineage/__init__.py",
-          "hash": ""
+          "hash": "sha256:62cc6343bbc52c6f2b0311fb2ee6919781dd343e6f175f123e256a4b4661b6a3"
         }
       ],
       "related_pages": [],
       "importance": "low",
-      "description": "",
-      "source": "skeleton",
-      "status": "todo",
-      "generated_at": null
+      "description": "Files not yet assigned to a system — group these in structure.json.",
+      "source": "generated",
+      "status": "fresh",
+      "generated_at": "2026-06-06T13:58:20+00:00"
     }
   }
 }
